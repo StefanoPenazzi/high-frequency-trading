@@ -1,0 +1,4 @@
+**/output
+**/logs
+**/src/main/resources/prop.properties
+/target/
