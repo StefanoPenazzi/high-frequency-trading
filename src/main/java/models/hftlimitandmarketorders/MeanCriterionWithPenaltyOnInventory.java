@@ -11,6 +11,10 @@ import org.ejml.simple.SimpleMatrix;
 
 /**
  * @author stefanopenazzi
+ * 
+ *
+ * @see <a href="https://www.tandfonline.com/doi/full/10.1080/14697688.2012.708779?scroll=top&needAccess=true">Fabien Guilbaud and Huyen Pham</a>
+ *
  *
  */
 public final class MeanCriterionWithPenaltyOnInventory extends OptimalMMPolicyFrameworkAbstract {
@@ -32,9 +36,6 @@ public final class MeanCriterionWithPenaltyOnInventory extends OptimalMMPolicyFr
 		}
 		 
 	 }
-	
-
-	
 	MeanCriterionWithPenaltyOnInventory(Integer startTime, Integer endTime, Double tick, Double rho, Double epsilon,
 			Double epsilon0, Map<Integer, Double> lambda_t, Double gamma, Integer maxVolM, Double maxVolT,
 			Integer timeStep, Integer lbShares, Integer ubShares, Map<StrategyBid, Map<Integer, Double>> proxiesBid,

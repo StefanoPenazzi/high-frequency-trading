@@ -23,84 +23,94 @@ import models.ModelParameterAnnotation.ModelParameter;
 
 /**
  * @author stefanopenazzi
+ * 
+ * @see <a href="https://www.tandfonline.com/doi/full/10.1080/14697688.2012.708779?scroll=top&needAccess=true">Fabien Guilbaud and Huyen Pham</a>
  *
  */
 public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface {
 	
 	private static final Logger log = LogManager.getLogger(OptimalMMPolicyFrameworkAbstract.class);
 	
+	//LIMIT the agent may submit limit buy order at the current best bid price or placing a buy order at a marginally higher price
+	//MARKET the agent buy at the best ask price
 	protected enum StrategyBid{
 		LIMIT,
 		MARKET,
 	}
+	//LIMIT the agent may submit limit sell order at the current best ask price or placing a sell order at a marginally lower price
+	//MARKET the agent sell at the best bid price
 	protected enum StrategyAsk{
 		LIMIT,
 		MARKET,
 	}
 	
-	//Analysis parameters
-	@ModelParameter(name = "start time",description="")
+	@ModelParameter(name = "startTime",description="Analysis start time in second. Min value=0 , Max value=86400. It must be smaller than endTime. It becomes relevant only with a non-constant spread jump intensity factor otherwise can be left to its default value=0")
 	private final Integer startTime;
-	@ModelParameter(name = "end time",description="")
+	@ModelParameter(name = "endTime",description="Analysis end time in second. Min value=0 , Max value=86400. It must be greater than startTime.")
 	private final Integer endTime;
-	//PARAMETERS
-	//Market parameters
-	@ModelParameter(name = "tick",description="")
-	private final Double tick;                     //tick size
-	@ModelParameter(name = "rho",description="")
-	private final Double rho;                      //per share rebate
-	@ModelParameter(name = "epsilon",description="")
-	private final Double epsilon;                  //per shaare fee
-	@ModelParameter(name = "epsilon0",description="")
-	private final Double epsilon0;                 //fixed fee
-	//@ModelParameter(name = "",description="")
-	private final Map<Integer,Double> lambda_t;    //tick time intensity
-	@ModelParameter(name = "numOfTickSteps",description="")
-	private final Integer numOfTickSteps;
-	//Optimization parameters
-	@ModelParameter(name = "gamma",description="")
-	private final Double gamma;                    //inventory penalization
-	@ModelParameter(name = "maxVolM",description="")
-	private final Integer maxVolM;                 //max volume make
-	@ModelParameter(name = "maxVolT",description="")
-	private final Double maxVolT;                 //max volume take
-	//Discretization parameters
-	//time
-	@ModelParameter(name = "timeStep",description="")
+	@ModelParameter(name = "timeStep",description="Time between startTime and endTime is discretized by using timeStep")
 	private final Integer timeStep;
-	@ModelParameter(name = "numOfTimeStep",description="")
-	private final Integer numOfTimeStep;           //time step
-	//inventory
-	@ModelParameter(name = "lbShares",description="")
-	private final Integer lbShares;                //lower bound shares
-	@ModelParameter(name = "ubShares",description="")
-	private final Integer ubShares;                //upper bound shares
-	@ModelParameter(name = "numOfInventorySteps",description="")
+	@ModelParameter(name = "numOfTimeStep",description="Total number of time steps between startTime and endTime using timeStep")
+	private final Integer numOfTimeStep;
+	@ModelParameter(name = "tick",description="Prices are discretized by using the tick size. The tick size is the smallest value for a transaction. The spread is also expressed as a multiple of the tick size")
+	private final Double tick;                     
+	@ModelParameter(name = "numOfTickSteps",description="Total number of ticks in the spread range considered in the analysis")
+	private final Integer numOfTickSteps;
+	@ModelParameter(name = "rho",description="Per share rebate")
+	private final Double rho;                      
+	@ModelParameter(name = "epsilon",description="Per share fee")
+	private final Double epsilon;                  
+	@ModelParameter(name = "epsilon0",description="Fixed fee")
+	private final Double epsilon0;                 
+	@ModelParameter(name = "gamma",description="Inventory penalty")
+	private final Double gamma;                    
+	@ModelParameter(name = "maxVolM",description="Max. volume make. Max volume that can be placed in a single limit order")
+	private final Integer maxVolM;                
+	@ModelParameter(name = "maxVolT",description="Max. volume take. Max volume that can be placed in a single market order")
+	private final Double maxVolT;                           
+	@ModelParameter(name = "lbShares",description="Inventory lower bound shares. Limit of short positions accumulated")
+	private final Integer lbShares;              
+	@ModelParameter(name = "ubShares",description="Inventory upper bound shares. Limit of long positions accumulated")
+	private final Integer ubShares;                
+	@ModelParameter(name = "volumeStep",description="Inventory, limit orders, and market orders are discretized. volumeStep represents the smallest amount considered")
+	private final Double volumeStep; 
+	@ModelParameter(name = "numOfInventorySteps",description="Total number of volume steps in the inventory. This is computed by Math.ceil((ubShares - lbShares)/volumeStep)")
 	private final Integer numOfInventorySteps;
-	@ModelParameter(name = "minInvIndex",description="")
-	private final Integer minInvIndex;             //inventory can be negative, ...???
-	
-	@ModelParameter(name = "volumeStep",description="")
-	private final Double volumeStep;               //new orders (market,limit) and the inventory are discretised 
-	@ModelParameter(name = "numOfMaxVolMStep",description="")
-	private final Integer numOfMaxVolMStep;        //TODO
-	@ModelParameter(name = "numOfMaxVolMStep",description="")
-	private final Integer numOfMaxVolTStep;        //TODO
-	//Spread parameters
-	private final SimpleMatrix spreadTransitionProbabMatrix;
-	private SimpleMatrix spreadTransitionProbabMatrixNSteps;
-	//Order
-	private final Map<StrategyBid,Map<Integer,Double>> proxiesBid;
-	private final Map<StrategyAsk,Map<Integer,Double>> proxiesAsk;
-	private Map<StrategyBid,Map<Integer,Double>> proxiesBidProb = new HashMap<>();
-	private Map<StrategyAsk,Map<Integer,Double>> proxiesAskProb = new HashMap<>(); 
-	@ModelParameter(name = "delay",description="")
+	private final Integer minInvIndex;                       
+	@ModelParameter(name = "numOfMaxVolMStep",description="Total number of volume steps in the maxVolM. This is computed by Math.ceil(maxVolM/volumeStep)")
+	private final Integer numOfMaxVolMStep;       
+	@ModelParameter(name = "numOfMaxVolTStep",description="Total number of volume steps in the maxVolT. This is computed by Math.ceil(maxVolT/volumeStep)")
+	private final Integer numOfMaxVolTStep;   
+	@ModelParameter(name = "delay",description="This is used to generate the transition probability matrix after a certain amount of time steps (delay*timeStep)")
 	private final Integer delay;
+	//Transition probability matrix of the discrete Markov chain used to model the spread jumps  
+	private final SimpleMatrix spreadTransitionProbabMatrix;
+	//Transition probability matrix of the spread jumps after a number of time steps equals to delay
+	private SimpleMatrix spreadTransitionProbabMatrixNSteps;
+	//proxy estimations of the intensity rate of the Poisson processes that model the
+	//and LIMIT orders on the bid side at different spreads. They are currently considered constant during the entire day
+	private final Map<StrategyBid,Map<Integer,Double>> proxiesBid;
+	//proxy estimations of the intensity rate of the Poisson processes that model the 
+	//and LIMIT orders on the ask side at different spreads. They are currently considered constant during the entire day
+	private final Map<StrategyAsk,Map<Integer,Double>> proxiesAsk;
+	//Probability to close an order on the bid side after a time= delay*timeStep using the intensity rates in proxiesBid
+	private Map<StrategyBid,Map<Integer,Double>> proxiesBidProb = new HashMap<>();
+	//Probability to close an order on the ask side after a time= delay*timeStep using the intensity rates in proxiesBid
+	private Map<StrategyAsk,Map<Integer,Double>> proxiesAskProb = new HashMap<>();
+	//The folder containing all the output will be saved in this directory
 	private final Path outputDir;
+	//The name of the folder with all the results
 	private final String testName;
 	
 	
 	
+    /**
+     * @author stefanopenazzi
+     * 
+     * Builder pattern to create OptimalMMPolicyFrameworkAbstract
+     * This is recommended instead of the constructor.
+     *
+     */
     public static class AbstractBuilder {
 		
     	protected Integer startTime = 0;
@@ -111,12 +121,9 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
     	protected Double epsilon = 0.0012;                  
     	protected Double epsilon0 = 0.000001;               
     	protected Map<Integer,Double> lambda_t;             
-    	//Optimization parameters
     	protected Double gamma = 0.0001d;                      
     	protected Integer maxVolM = 500;                   
     	protected Double maxVolT = 500d;                   
-    	//Discretization parameters
-    	protected Integer DAYTIMEXSEC = 86400;
     	protected Integer numOfTimeStep = 86400;           
     	protected Integer lbShares = -5000;               
     	protected Integer ubShares = 5000;       
@@ -128,6 +135,16 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
     	protected Path outputDir;
     	protected String testName;
 		
+		/**
+		 * @param file : File containing the Level1 LOB data. The format must be time(ms), 
+		 * @param tick : Prices are discretized by using the tick size. The tick size is the smallest value for a transaction. The spread is also expressed as a multiple of the tick size
+		 * @param vol  : Volume used in the proxy estimations of the intensity rate of the Poisson processes that model the LIMIT orders on the bid side and on the ask side
+		 * @param outputDir : The folder containing all the output will be saved in this directory
+		 * @param testName : The name of the folder with all the results
+		 * @throws IOException
+		 * 
+		 * The initial analysis on the data-set to generate the spreadTransitionProbabMatrix and the proxies are performed here
+		 */
 		public AbstractBuilder(File file,Double tick, Double vol, Path outputDir,String testName) throws IOException {
 			this.tick = tick;
 			List<DataTypePriceAmountMarkord> tpcl = CSV.getList(file, DataTypePriceAmountMarkord.class, 1);
@@ -195,8 +212,6 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
         }
 	}
 	
-	
-	
 	OptimalMMPolicyFrameworkAbstract(Integer startTime,Integer endTime,Double tick,Double rho,Double epsilon,
 			Double epsilon0,Map<Integer,Double> lambda_t,Double gamma,Integer maxVolM,Double maxVolT,
 			Integer timeStep,Integer lbShares,Integer ubShares,Map<StrategyBid,Map<Integer,Double>> proxiesBid,
@@ -208,8 +223,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		 this.tick = tick;                     
 		 this.rho = rho;                      
 		 this.epsilon = epsilon;                  
-		 this.epsilon0 = epsilon0;                 
-		 this.lambda_t = lambda_t;           
+		 this.epsilon0 = epsilon0;                          
 		 this.gamma = gamma;                    
 		 this.maxVolM = maxVolM;                 
 		 this.maxVolT = maxVolT;  
@@ -234,12 +248,23 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	    
 	     }
 	
-	
-	//must be a non-negative convex function
+	/**
+	 * @param i : This represents the inventory step
+	 * @return  : inventory penalty
+	 * 
+	 * must be a non-negative convex function. This penalizes variations of the inventory
+	 * 
+	 */
 	public abstract Double penaltyFunction(Integer i);
 	public abstract Double utilityFunction();
 	
-	public void initialize() {
+	
+	/**
+	 * 
+	 * proxiesBidProb and proxiesAskProb are initialized here
+	 * 
+	 */
+	private void initialize() {
 		proxiesBidProb.put(StrategyBid.LIMIT, new HashMap<>());
 		proxiesBidProb.put(StrategyBid.MARKET, new HashMap<>());
 		proxiesAskProb.put(StrategyAsk.LIMIT, new HashMap<>());
@@ -247,9 +272,12 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		setProxiesProb();
 	}
 	
+	/**
+	 * The numerical approximation to obtain the best policy is launched here
+	 */
 	@Override
 	public void run() {
-		//time, inventory, spread
+		
 		Double[][][] valueFunction = new Double[numOfTimeStep][this.numOfInventorySteps][numOfTickSteps];
 		Policy[][][] bestPolicy = new Policy[numOfTimeStep][this.numOfInventorySteps][numOfTickSteps];
 		
@@ -268,6 +296,8 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 				}
 			}
 		}
+		
+		//results and input data are saved in the output directory
 		try {
 			writeOutput(bestPolicy,null);
 		} catch (IOException e) {
@@ -276,14 +306,16 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	}
 	
 	/**
-	 * @param bestPolicy
-	 * @param valueFunction
-	 * @param time
-	 * @param invent
-	 * @param spread
-	 * @return
+	 * @param bestPolicy     : This matrix contains the best policy results of the previously visited states. The best action from the current state (time,inventory,spread) is saved in the matrix as well.
+	 * @param valueFunction  : This matrix contains all the previously computed value function values (Pi). The new Pi of the current state (time,inventory,spread) is saved in the matrix as well.
+	 * @param time           : Current time step  
+	 * @param invent         : Current inventory step 
+	 * @param spread         : Current spread step
+	 * 
+	 * The method compares a new action considering a LIMIT order with a new action considering a MARKET order.
+	 * The best of these two is selected and considered in the best policy.
 	 */
-	private Object[] getPi(Policy[][][] bestPolicy,Double[][][] valueFunction, Integer time, Integer invent, Integer spread) {
+	private void getPi(Policy[][][] bestPolicy,Double[][][] valueFunction, Integer time, Integer invent, Integer spread) {
 		
 		Object[] piTilde = getPiTilde(valueFunction,time,invent,spread);
 		Double[] markOrd = getSupMarkord(valueFunction,time,invent,spread);
@@ -307,10 +339,18 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 					.build();
 			bestPolicy[time][invent][spread] = p;
 		}
-		
-		return null;
 	}
 	
+	
+	/**
+	 * @param bestPolicy     : This matrix contains the best policy results of the previously visited states. The best action from the current state (time,inventory,spread) is saved in the matrix as well.
+	 * @param valueFunction  : This matrix contains all the previously computed value function values (Pi). The new Pi of the current state (time,inventory,spread) is saved in the matrix as well.
+	 * @param time           : Current time step  
+	 * @param invent         : Current inventory step 
+	 * @param spread         : Current spread step
+	 * @return               : Returns the vector containing the value of PiTilde, the best bid strategy, the best bid volume, the best ask strategy, and the best ask volume.
+	 * 
+	 */
 	private Object[] getPiTilde(Double[][][] valueFunction, Integer time, Integer invent, Integer spread) {
 		
 		Object[] supBid = getSupBid(valueFunction,time,invent,spread);
@@ -320,11 +360,19 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 				+getSpreadExpVal(valueFunction,time,invent,spread)
 				+(double)supBid[0]
 				+(double)supAsk[0]
-				-this.timeStep*this.gamma*penaltyFunction(invent));   //TODO extenal policy this.timeStep*this.gamma*(Math.pow(getInventory(invent),2))
+				-this.timeStep*this.gamma*penaltyFunction(invent));
 		
 		return new Object[] {res,supBid[1],supBid[2],supAsk[1],supAsk[2]};
 	}
 	
+	/**
+	 * @param bestPolicy     : This matrix contains the best policy results of the previously visited states. The best action from the current state (time,inventory,spread) is saved in the matrix as well.
+	 * @param valueFunction  : This matrix contains all the previously computed value function values (Pi). The new Pi of the current state (time,inventory,spread) is saved in the matrix as well.
+	 * @param time           : Current time step  
+	 * @param invent         : Current inventory step 
+	 * @param spread         : Current spread step
+	 * @return               : Returns the expected value of the value function at time+1 with respect to the jump spread probability after a time interval equal to delay.
+	 */
 	private Double getSpreadExpVal(Double[][][] valueFunction, Integer time, Integer invent, Integer spread) {
 		Double res = 0d;
 		for(int i=0;i<this.numOfTickSteps;i++) {
@@ -334,6 +382,15 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		return res;
 	}
 	
+	/**
+	 * @param bestPolicy     : This matrix contains the best policy results of the previously visited states. The best action from the current state (time,inventory,spread) is saved in the matrix as well.
+	 * @param valueFunction  : This matrix contains all the previously computed value function values (Pi). The new Pi of the current state (time,inventory,spread) is saved in the matrix as well.
+	 * @param time           : Current time step  
+	 * @param invent         : Current inventory step 
+	 * @param spread         : Current spread step
+	 * @return               : Returns the vector containing the best bid strategy and the best bid volume at the current state.
+	 * 
+	 */
 	private Object[] getSupBid(Double[][][] valueFunction, Integer time, Integer invent, Integer spread) {
 		
 		StrategyBid bestStrategy = null;
@@ -377,6 +434,15 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		return new Object[] {bestResult,bestStrategy,bestVolume};
 	}
 	
+	/**
+	 * @param bestPolicy     : This matrix contains the best policy results of the previously visited states. The best action from the current state (time,inventory,spread) is saved in the matrix as well.
+	 * @param valueFunction  : This matrix contains all the previously computed value function values (Pi). The new Pi of the current state (time,inventory,spread) is saved in the matrix as well.
+	 * @param time           : Current time step  
+	 * @param invent         : Current inventory step 
+	 * @param spread         : Current spread step
+	 * @return               : Return the vector containing the best ask strategy,the best ask volume at the current state.
+	 * 
+	 */
 	private Object[] getSupAsk(Double[][][] valueFunction, Integer time, Integer invent, Integer spread) {
 		StrategyAsk bestStrategy = null;
 		Double bestVolume = 0d;
@@ -414,6 +480,15 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		return new Object[] {bestResult,bestStrategy,bestVolume};
 	}
 	
+	/**
+	 * @param bestPolicy     : This matrix contains the best policy results of the previously visited states. The best action from the current state (time,inventory,spread) is saved in the matrix as well.
+	 * @param valueFunction  : This matrix contains all the previously computed value function values (Pi). The new Pi of the current state (time,inventory,spread) is saved in the matrix as well.
+	 * @param time           : Current time step  
+	 * @param invent         : Current inventory step 
+	 * @param spread         : Current spread step
+	 * @return               : Returns the best volume to take from the market at the current state.
+	 * 
+	 */
 	private Double[] getSupMarkord(Double[][][] valueFunction, Integer time, Integer invent, Integer spread) {
 		
 		Double bestResult = -Double.MAX_VALUE;
@@ -445,15 +520,24 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		return newMatrix;
 	}
 	
+	/**
+	 * @param i  : Inventory step
+	 * @return   : Returns the volume of the inventory at the inventory step i 
+	 */
 	protected Double getInventory(Integer i) {
 		 Double d = (i-this.minInvIndex)*this.volumeStep;
 		 return d;
 	}
 	
+	/**
+	 * @param v  : Inventory level
+	 * @return   : Returns the inventory step representing the inventory at level v
+	 */
 	protected Integer getInventoryIndex(Double v) {
 		Integer i= (int)Math.floor(v/this.volumeStep) + this.minInvIndex;
 		return i;
 	}
+	
 	
 	@SuppressWarnings("unchecked")
 	private void setProxiesProb() {
@@ -504,7 +588,6 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		}
 		return str.toString();
 	}
-	
 	
 	public String printInputData() {
 		
