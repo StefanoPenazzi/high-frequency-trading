@@ -592,7 +592,8 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	public String printInputData() {
 		
 		StringBuilder str = new StringBuilder();
-		str.append("Model input parameters report");
+		str.append("Model input parameters");
+		str.append("\n");
 		str.append("\n");
 		str.append("Name | Description | value");
 		str.append("\n");

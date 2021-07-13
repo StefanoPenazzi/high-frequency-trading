@@ -33,6 +33,13 @@ public final class ParametersEstimator {
 	private static final Integer SXHOUR = 3600; 
 	private static final ZoneId TIMEZONE_NY = ZoneId.of("Etc/Greenwich");
 	
+	/**
+	 * @param level1List : List of DataTypePriceAmountMarkord
+	 * @return           : Return a list containing the spreads
+	 * 
+	 * The spread represents the difference between the ask and the bid. A new spread is generated every time the the difference 
+	 * between ask and bid change. 
+	 */
 	public static List<Spread> getSpreadList(List<DataTypePriceAmountMarkord> level1List){
 		
 		List<Spread> spreadList = new ArrayList<>();
@@ -82,6 +89,13 @@ public final class ParametersEstimator {
 		return spreadList;
 	}
 	
+	/**
+	 * @param spreadList
+	 * @param tick        
+	 * @param min         
+	 * @param max         
+	 * @return
+	 */
 	public static SimpleMatrix getEstimatedSpreadTransitionProbabilityMatrix( List<Spread> spreadList, Double tick, Double min,Double max) {
 		
 		//TODO the list must be sorted
@@ -131,6 +145,11 @@ public final class ParametersEstimator {
 		return sm;
 	}
 	
+	/**
+	 * @param spreadList
+	 * @param interval
+	 * @return
+	 */
 	public static Map<Integer,Double> getEstimatedSpreadIntensityFunction(List<Spread> spreadList,Integer interval){
 		
 		//TODO the list must be sorted
@@ -154,6 +173,12 @@ public final class ParametersEstimator {
 		return spreadIntensityFunction;
 	}
 	
+	/**
+	 * @param spreadList
+	 * @param tick
+	 * @param typicalVolume
+	 * @return
+	 */
 	public static Map<String,Map<Integer,Double>> getEstimatedExecutionParameters(List<Spread> spreadList, Double tick, Double typicalVolume){
 		
 		Map<String,Map<Integer,Double>> proxies = new HashMap<>();

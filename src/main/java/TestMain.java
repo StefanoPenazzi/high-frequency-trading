@@ -2,7 +2,6 @@ import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
 import models.hftlimitandmarketorders.MeanCriterionWithPenaltyOnInventory;
 import models.hftlimitandmarketorders.MeanCriterionWithPenaltyOnInventory.Builder;
 import picocli.CommandLine;
@@ -36,10 +35,10 @@ public class TestMain implements Callable<Integer> {
 
 	@Override
 	public Integer call() throws Exception {
-		
 		MeanCriterionWithPenaltyOnInventory hft = ((Builder) new MeanCriterionWithPenaltyOnInventory.Builder(inputFile.toFile(),0.5,1000d,outputDir,testName)
 				.endTime(300)
-				.volumeStep(30d))
+				.volumeStep(30d)
+				.gamma(0.0002))
 				.build();
 		hft.run();
 		return 1;

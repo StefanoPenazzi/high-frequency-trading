@@ -20,6 +20,10 @@ public final class OrderBook {
 	
 	private static final Logger log = LogManager.getLogger(OrderBook.class);
 	
+	/**
+	 * @param orderBookSnapshot
+	 * @return
+	 */
 	public static List<DateTypePriceAmount> orderBookSnapshot2Level1(List<DateTypePriceAmount> orderBookSnapshot) {
 		
 		Map<Long, DateTypePriceAmount> bidMap = orderBookSnapshot.stream()
@@ -43,6 +47,12 @@ public final class OrderBook {
 		
 	}
 	
+    /**
+     * @param level1
+     * @param cancellationRate
+     * @param maxMarketOrdersRate
+     * @return
+     */
     public static List<DataTypePriceAmountMarkord> addOrderMarket2Level1(List<DateTypePriceAmount> level1, Double cancellationRate, Double maxMarketOrdersRate) {
     	
     	//TODO central rand
