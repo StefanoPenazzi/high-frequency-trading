@@ -12,6 +12,7 @@ import java.util.UUID;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.ejml.simple.SimpleMatrix;
+import org.ejml.dense.row.CommonOps_DDRM;
 import com.opencsv.exceptions.CsvDataTypeMismatchException;
 import com.opencsv.exceptions.CsvRequiredFieldEmptyException;
 import data.input.tradeformat.DataTypePriceAmountMarkord;
@@ -83,6 +84,8 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	private final Integer numOfMaxVolTStep;   
 	@ModelParameter(name = "delay",description="This is used to generate the transition probability matrix after a certain amount of time steps (delay*timeStep)")
 	private final Integer delay;
+	//Spread jump intensity rate
+	private final Map<Integer,Double> lambda_t; 
 	//Transition probability matrix of the discrete Markov chain used to model the spread jumps  
 	private final SimpleMatrix spreadTransitionProbabMatrix;
 	//Transition probability matrix of the spread jumps after a number of time steps equals to delay
@@ -148,6 +151,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		public AbstractBuilder(File file,Double tick, Double vol, Path outputDir,String testName) throws IOException {
 			this.tick = tick;
 			List<DataTypePriceAmountMarkord> tpcl = CSV.getList(file, DataTypePriceAmountMarkord.class, 1);
+			lambda_t = ParametersEstimator.getEstimatedSpreadIntensityFunction(ParametersEstimator.getSpreadList(tpcl),86401);
 			this.spreadTransitionProbabMatrix = ParametersEstimator.getEstimatedSpreadTransitionProbabilityMatrix(ParametersEstimator.getSpreadList(tpcl),this.tick,0d,4d);
 			Map<String,Map<Integer,Double>> proxies = ParametersEstimator.getEstimatedExecutionParameters(ParametersEstimator.getSpreadList(tpcl),this.tick,vol);
 			this.proxiesBid.put(StrategyBid.LIMIT,proxies.get("b"));
@@ -224,7 +228,8 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		 this.rho = rho;                      
 		 this.epsilon = epsilon;                  
 		 this.epsilon0 = epsilon0;                          
-		 this.gamma = gamma;                    
+		 this.gamma = gamma;   
+		 this.lambda_t = lambda_t;
 		 this.maxVolM = maxVolM;                 
 		 this.maxVolT = maxVolT;  
 		 this.timeStep = timeStep;
@@ -237,7 +242,6 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	     this.spreadTransitionProbabMatrix = spreadTransitionProbabMatrix;
 	     this.numOfTickSteps = this.spreadTransitionProbabMatrix.numRows();      //guarda gli 0
 	     this.delay = delay;
-	     this.spreadTransitionProbabMatrixNSteps = matrixPow(this.spreadTransitionProbabMatrix,this.delay);
 	     this.numOfMaxVolMStep = (int)Math.ceil(this.maxVolM/this.volumeStep);
 	     this.numOfMaxVolTStep = (int)Math.ceil(this.maxVolT/this.volumeStep);
 	     this.proxiesBid = proxiesBid;
@@ -269,6 +273,8 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		proxiesBidProb.put(StrategyBid.MARKET, new HashMap<>());
 		proxiesAskProb.put(StrategyAsk.LIMIT, new HashMap<>());
 		proxiesAskProb.put(StrategyAsk.MARKET, new HashMap<>());
+		CommonOps_DDRM.scale(lambda_t.get(0)*this.delay*this.timeStep,this.spreadTransitionProbabMatrix.getDDRM());
+		spreadTransitionProbabMatrixNSteps = new SimpleMatrix(this.spreadTransitionProbabMatrix);
 		setProxiesProb();
 	}
 	
@@ -510,14 +516,6 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 			}
 		}
 		return new Double[] {bestResult,bestVolumeT};
-	}
-	
-	private SimpleMatrix matrixPow(SimpleMatrix matrix, Integer p){
-		SimpleMatrix newMatrix = new SimpleMatrix(matrix);
-		for(int i=1;i<p;i++) {
-			newMatrix = newMatrix.mult(matrix);
-		}
-		return newMatrix;
 	}
 	
 	/**
