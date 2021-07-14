@@ -84,6 +84,8 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	private final Integer numOfMaxVolTStep;   
 	@ModelParameter(name = "delay",description="This is used to generate the transition probability matrix after a certain amount of time steps (delay*timeStep)")
 	private final Integer delay;
+	@ModelParameter(name = "runBacktest",description="")
+	private final Boolean runBacktest;
 	//Spread jump intensity rate
 	private final Map<Integer,Double> lambda_t; 
 	//Transition probability matrix of the discrete Markov chain used to model the spread jumps  
@@ -104,6 +106,8 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	private final Path outputDir;
 	//The name of the folder with all the results
 	private final String testName;
+	//Backtest setup
+	private final Backtest backtest;
 	
 	
 	
@@ -114,7 +118,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
      * This is recommended instead of the constructor.
      *
      */
-    public static class AbstractBuilder {
+    public static abstract class AbstractBuilder {
 		
     	protected Integer startTime = 0;
     	protected Integer endTime = 86400;
@@ -137,6 +141,15 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
     	protected Double volumeStep = 10d;
     	protected Path outputDir;
     	protected String testName;
+    	//backtest
+    	protected Boolean backTest = true;
+    	protected Integer backTestRuns = 100;
+    	protected Double backTestInitialPrice = 100d;
+    	protected Integer backTestPeriods = 300;
+    	protected Double backTestStep = 1d;
+    	protected Double backTestDrift = 0.00001d;
+    	protected Double backTestSigma = 0.000005d;
+    	protected Backtest bt;
 		
 		/**
 		 * @param file : File containing the Level1 LOB data. The format must be time(ms), 
@@ -160,6 +173,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 			this.proxiesAsk.put(StrategyAsk.MARKET,proxies.get("a-"));
 			this.outputDir = outputDir;
 			this.testName = testName;
+			
 		}
 		
 		public AbstractBuilder startTime(Integer startTime){
@@ -214,13 +228,53 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
             this.volumeStep = volumeStep;
             return this;
         }
+		public AbstractBuilder backTest(Boolean backTest){
+            this.backTest = backTest;
+            return this;
+        }
+		public AbstractBuilder backTestRuns(Integer backTestRuns){
+            this.backTestRuns = backTestRuns;
+            return this;
+        } 
+		public AbstractBuilder backTestPeriods(Integer backTestPeriods){
+            this.backTestPeriods = backTestPeriods;
+            return this;
+        }
+		public AbstractBuilder backTestStep (Double backTestStep){
+            this.backTestStep = backTestStep;
+            return this;
+        }
+		public AbstractBuilder backTestInitialPrice (Double backTestInitialPrice){
+            this.backTestInitialPrice = backTestInitialPrice;
+            return this;
+        }
+		public AbstractBuilder backTestDrift(Double backTestDrift){
+            this.backTestDrift = backTestDrift;
+            return this;
+        }
+		public AbstractBuilder backTestSigma(Double backTestSigma){
+            this. backTestSigma =  backTestSigma;
+            return this;
+        }
+		
+		private void initialize() {
+			this.bt = new Backtest(this.backTestRuns,this.backTestInitialPrice,this.backTestPeriods,this.backTestStep,this.backTestDrift,
+					this.backTestSigma,null,this.lambda_t,this.spreadTransitionProbabMatrix,this.tick);
+		}
+		
+		public abstract <T extends OptimalMMPolicyFrameworkAbstract> T inheritedBuild();
+		
+		public <T extends OptimalMMPolicyFrameworkAbstract> T build(){
+			initialize();
+			return inheritedBuild();
+		}
 	}
 	
 	OptimalMMPolicyFrameworkAbstract(Integer startTime,Integer endTime,Double tick,Double rho,Double epsilon,
 			Double epsilon0,Map<Integer,Double> lambda_t,Double gamma,Integer maxVolM,Double maxVolT,
 			Integer timeStep,Integer lbShares,Integer ubShares,Map<StrategyBid,Map<Integer,Double>> proxiesBid,
 			Map<StrategyAsk,Map<Integer,Double>> proxiesAsk,SimpleMatrix spreadTransitionProbabMatrix,Integer delay,Double volumeStep,
-			Path outputDir, String testName)
+			Path outputDir, String testName,Boolean runBacktest,Backtest backtest)
 	{
 		 this.startTime = startTime;
 		 this.endTime = endTime;
@@ -248,6 +302,8 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	     this.proxiesAsk = proxiesAsk;
 	     this.outputDir = outputDir;
 	     this.testName = testName;
+	     this.runBacktest = runBacktest;
+	     this.backtest = backtest;
 	     initialize();
 	    
 	     }
@@ -302,12 +358,15 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 				}
 			}
 		}
-		
-		//results and input data are saved in the output directory
+		//policy and input data are saved in the output directory
 		try {
-			writeOutput(bestPolicy,null);
+			writeOutput(bestPolicy,this.testName);
 		} catch (IOException e) {
 			e.printStackTrace();
+		}
+		//run backtest
+		if(this.runBacktest) {
+			this.backtest.run(bestPolicy);
 		}
 	}
 	

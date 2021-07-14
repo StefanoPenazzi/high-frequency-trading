@@ -38,7 +38,10 @@ public class TestMain implements Callable<Integer> {
 		MeanCriterionWithPenaltyOnInventory hft = ((Builder) new MeanCriterionWithPenaltyOnInventory.Builder(inputFile.toFile(),0.5,1000d,outputDir,testName)
 				.endTime(300)
 				.volumeStep(30d)
-				.gamma(0.0002))
+				.gamma(0.0002)
+				.backTestPeriods(10000)
+				.backTestStep(8d)
+				.backTestDrift(0d))
 				.build();
 		hft.run();
 		return 1;

@@ -27,12 +27,13 @@ public final class MeanCriterionWithPenaltyOnInventory extends OptimalMMPolicyFr
 			super(file, tick, vol, outputDir,testName);
 		}
 		
-		public MeanCriterionWithPenaltyOnInventory build() {
+		@Override
+		public MeanCriterionWithPenaltyOnInventory inheritedBuild() {
 			return new MeanCriterionWithPenaltyOnInventory(this.startTime, this.endTime, this.tick, this.rho, this.epsilon,
 					this.epsilon0, this.lambda_t, this.gamma, this.maxVolM, this.maxVolT,
 					this.timeStep, this.lbShares, this.ubShares, this.proxiesBid,
 					this.proxiesAsk,  this.spreadTransitionProbabMatrix,
-					this.delay,this.volumeStep,this.outputDir,this.testName);
+					this.delay,this.volumeStep,this.outputDir,this.testName,this.backTest,this.bt);
 		}
 		 
 	 }
@@ -40,9 +41,9 @@ public final class MeanCriterionWithPenaltyOnInventory extends OptimalMMPolicyFr
 			Double epsilon0, Map<Integer, Double> lambda_t, Double gamma, Integer maxVolM, Double maxVolT,
 			Integer timeStep, Integer lbShares, Integer ubShares, Map<StrategyBid, Map<Integer, Double>> proxiesBid,
 			Map<StrategyAsk, Map<Integer, Double>> proxiesAsk, SimpleMatrix spreadTransitionProbabMatrix,
-			Integer delay,Double volumeStep ,Path outputDir,String testName) {
+			Integer delay,Double volumeStep ,Path outputDir,String testName,Boolean runBacktest,Backtest backtest) {
 		super(startTime, endTime, tick, rho, epsilon, epsilon0, lambda_t, gamma, maxVolM, maxVolT, timeStep, lbShares, ubShares,
-				proxiesBid, proxiesAsk, spreadTransitionProbabMatrix, delay,volumeStep,outputDir,testName);
+				proxiesBid, proxiesAsk, spreadTransitionProbabMatrix, delay,volumeStep,outputDir,testName,runBacktest,backtest);
 	}
 
 	@Override
