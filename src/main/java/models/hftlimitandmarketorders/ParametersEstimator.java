@@ -243,4 +243,70 @@ public final class ParametersEstimator {
 		
 		return proxies;
 	}
+	
+	
+public static Map<String,TreeMap<Double,Double>> getEstimatedExecutionParametersTreeMap(List<Spread> spreadList, Double tick, Double typicalVolume){
+		
+		Map<String,TreeMap<Double,Double>> proxies = new HashMap<>();
+		proxies.put("b", new TreeMap<>());
+		proxies.put("b+", new TreeMap<>());
+		proxies.put("a", new TreeMap<>());
+		proxies.put("a-", new TreeMap<>());
+		Map<Double,Long> times = new HashMap<>();
+		
+		for(int i = 1; i<spreadList.size();i++) {
+			Spread spread = spreadList.get(i);
+			Spread spread_1 = spreadList.get(i-1);
+			Double intTick = spread_1.getSpread();
+			
+			if(typicalVolume < spread.getCumulatedMarketOrderQuantitySell()) {
+				if(proxies.get("b+").containsKey(intTick)) {
+					proxies.get("b+").put(intTick,proxies.get("b+").get(intTick)+1);
+				}
+				else {
+					proxies.get("b+").put(intTick,1d);
+				}
+			}
+			if(typicalVolume + spread_1.getBidAmount() < spread.getCumulatedMarketOrderQuantitySell()) {
+				if(proxies.get("b").containsKey(intTick)) {
+					proxies.get("b").put(intTick,proxies.get("b").get(intTick)+1);
+				}
+				else {
+					proxies.get("b").put(intTick,1d);
+				}
+			}
+            if(typicalVolume < spread.getCumulatedMarketOrderQuantityBuy()) {
+            	if(proxies.get("a-").containsKey(intTick)) {
+					proxies.get("a-").put(intTick,proxies.get("a-").get(intTick)+1);
+				}
+				else {
+					proxies.get("a-").put(intTick,1d);
+				}
+			}
+			if(typicalVolume + spread_1.getAskAmount() < spread.getCumulatedMarketOrderQuantityBuy()) {
+				if(proxies.get("a").containsKey(intTick)) {
+					proxies.get("a").put(intTick,proxies.get("a").get(intTick)+1);
+				}
+				else {
+					proxies.get("a").put(intTick,1d);
+				}
+			}
+			
+			if(times.containsKey(intTick)) {
+				times.put(intTick, (times.get(intTick)+spread.getDate()-spread_1.getDate())/1000L);
+			}
+			else {
+				times.put(intTick, (spread.getDate()-spread_1.getDate())/1000L);
+			}
+		}
+		
+		for(String keyStrategy: proxies.keySet()) {
+			for(Double KeyIntTick: proxies.get(keyStrategy).keySet()) {
+				Long t = times.get(KeyIntTick);
+				proxies.get(keyStrategy).put(KeyIntTick, (Double)proxies.get(keyStrategy).get(KeyIntTick)/t);
+			}
+		}
+		
+		return proxies;
+	}
 }

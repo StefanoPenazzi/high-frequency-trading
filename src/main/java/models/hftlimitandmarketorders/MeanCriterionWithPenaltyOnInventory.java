@@ -39,7 +39,7 @@ public final class MeanCriterionWithPenaltyOnInventory extends OptimalMMPolicyFr
 	 }
 	MeanCriterionWithPenaltyOnInventory(Integer startTime, Integer endTime, Double tick, Double rho, Double epsilon,
 			Double epsilon0, Map<Integer, Double> lambda_t, Double gamma, Integer maxVolM, Double maxVolT,
-			Integer timeStep, Integer lbShares, Integer ubShares, Map<StrategyBid, Map<Integer, Double>> proxiesBid,
+			Double timeStep, Integer lbShares, Integer ubShares, Map<StrategyBid, Map<Integer, Double>> proxiesBid,
 			Map<StrategyAsk, Map<Integer, Double>> proxiesAsk, SimpleMatrix spreadTransitionProbabMatrix,
 			Integer delay,Double volumeStep ,Path outputDir,String testName,Boolean runBacktest,Backtest backtest) {
 		super(startTime, endTime, tick, rho, epsilon, epsilon0, lambda_t, gamma, maxVolM, maxVolT, timeStep, lbShares, ubShares,

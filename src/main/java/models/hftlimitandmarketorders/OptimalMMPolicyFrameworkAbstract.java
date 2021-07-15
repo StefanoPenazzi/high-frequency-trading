@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,6 +21,7 @@ import data.utils.CSV;
 import models.ModelInterface;
 import models.ModelParameterAnnotation;
 import models.ModelParameterAnnotation.ModelParameter;
+import models.hftlimitandmarketorders.OptimalMMPolicyFrameworkAbstract.StrategyAsk;
 
 
 /**
@@ -35,14 +37,14 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	//LIMIT the agent may submit limit buy order at the current best bid price or placing a buy order at a marginally higher price
 	//MARKET the agent buy at the best ask price
 	protected enum StrategyBid{
-		LIMIT,
-		MARKET,
+		B,
+		BPLUS,
 	}
 	//LIMIT the agent may submit limit sell order at the current best ask price or placing a sell order at a marginally lower price
 	//MARKET the agent sell at the best bid price
 	protected enum StrategyAsk{
-		LIMIT,
-		MARKET,
+		A,
+		AMINUS,
 	}
 	
 	@ModelParameter(name = "startTime",description="Analysis start time in second. Min value=0 , Max value=86400. It must be smaller than endTime. It becomes relevant only with a non-constant spread jump intensity factor otherwise can be left to its default value=0")
@@ -50,7 +52,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	@ModelParameter(name = "endTime",description="Analysis end time in second. Min value=0 , Max value=86400. It must be greater than startTime.")
 	private final Integer endTime;
 	@ModelParameter(name = "timeStep",description="Time between startTime and endTime is discretized by using timeStep")
-	private final Integer timeStep;
+	private final Double timeStep;
 	@ModelParameter(name = "numOfTimeStep",description="Total number of time steps between startTime and endTime using timeStep")
 	private final Integer numOfTimeStep;
 	@ModelParameter(name = "tick",description="Prices are discretized by using the tick size. The tick size is the smallest value for a transaction. The spread is also expressed as a multiple of the tick size")
@@ -122,7 +124,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		
     	protected Integer startTime = 0;
     	protected Integer endTime = 86400;
-    	protected Integer timeStep = 5;
+    	protected Double timeStep = 5d;
     	protected Double tick = 0.5;                        
     	protected Double rho = 0.0008;                      
     	protected Double epsilon = 0.0012;                  
@@ -137,6 +139,8 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
     	protected SimpleMatrix spreadTransitionProbabMatrix = null;
     	protected Map<StrategyBid,Map<Integer,Double>> proxiesBid = new HashMap<>();
     	protected Map<StrategyAsk,Map<Integer,Double>> proxiesAsk = new HashMap<>();
+    	private Map<StrategyAsk,TreeMap<Double,Double>> proxiesAsk_=new HashMap();
+		private Map<StrategyBid,TreeMap<Double,Double>> proxiesBid_=new HashMap();
     	protected Integer delay = 4;
     	protected Double volumeStep = 10d;
     	protected Path outputDir;
@@ -167,10 +171,19 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 			lambda_t = ParametersEstimator.getEstimatedSpreadIntensityFunction(ParametersEstimator.getSpreadList(tpcl),86401);
 			this.spreadTransitionProbabMatrix = ParametersEstimator.getEstimatedSpreadTransitionProbabilityMatrix(ParametersEstimator.getSpreadList(tpcl),this.tick,0d,4d);
 			Map<String,Map<Integer,Double>> proxies = ParametersEstimator.getEstimatedExecutionParameters(ParametersEstimator.getSpreadList(tpcl),this.tick,vol);
-			this.proxiesBid.put(StrategyBid.LIMIT,proxies.get("b"));
-			this.proxiesBid.put(StrategyBid.MARKET,proxies.get("b+"));
-			this.proxiesAsk.put(StrategyAsk.LIMIT,proxies.get("a"));
-			this.proxiesAsk.put(StrategyAsk.MARKET,proxies.get("a-"));
+			//this is only useful for the backtest
+			Map<String,TreeMap<Double,Double>> proxies_ = ParametersEstimator.getEstimatedExecutionParametersTreeMap(ParametersEstimator.getSpreadList(tpcl),this.tick,vol);
+			
+			this.proxiesBid.put(StrategyBid.B,proxies.get("b"));
+			this.proxiesBid.put(StrategyBid.BPLUS,proxies.get("b+"));
+			this.proxiesAsk.put(StrategyAsk.A,proxies.get("a"));
+			this.proxiesAsk.put(StrategyAsk.AMINUS,proxies.get("a-"));
+			
+			this.proxiesBid_.put(StrategyBid.B,proxies_.get("b"));
+			this.proxiesBid_.put(StrategyBid.BPLUS,proxies_.get("b+"));
+			this.proxiesAsk_.put(StrategyAsk.A,proxies_.get("a"));
+			this.proxiesAsk_.put(StrategyAsk.AMINUS,proxies_.get("a-"));
+			
 			this.outputDir = outputDir;
 			this.testName = testName;
 			
@@ -178,6 +191,10 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		
 		public AbstractBuilder startTime(Integer startTime){
             this.startTime = startTime;
+            return this;
+        }
+		public AbstractBuilder timeStep(Double timeStep){
+            this.timeStep =  timeStep;
             return this;
         }
 		public AbstractBuilder endTime(Integer endTime){
@@ -259,7 +276,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		
 		private void initialize() {
 			this.bt = new Backtest(this.backTestRuns,this.backTestInitialPrice,this.backTestPeriods,this.backTestStep,this.backTestDrift,
-					this.backTestSigma,null,this.lambda_t,this.spreadTransitionProbabMatrix,this.tick);
+					this.backTestSigma,null,this.lambda_t,this.spreadTransitionProbabMatrix,this.tick,proxiesBid_,proxiesAsk_);
 		}
 		
 		public abstract <T extends OptimalMMPolicyFrameworkAbstract> T inheritedBuild();
@@ -272,7 +289,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	
 	OptimalMMPolicyFrameworkAbstract(Integer startTime,Integer endTime,Double tick,Double rho,Double epsilon,
 			Double epsilon0,Map<Integer,Double> lambda_t,Double gamma,Integer maxVolM,Double maxVolT,
-			Integer timeStep,Integer lbShares,Integer ubShares,Map<StrategyBid,Map<Integer,Double>> proxiesBid,
+			Double timeStep,Integer lbShares,Integer ubShares,Map<StrategyBid,Map<Integer,Double>> proxiesBid,
 			Map<StrategyAsk,Map<Integer,Double>> proxiesAsk,SimpleMatrix spreadTransitionProbabMatrix,Integer delay,Double volumeStep,
 			Path outputDir, String testName,Boolean runBacktest,Backtest backtest)
 	{
@@ -288,7 +305,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		 this.maxVolT = maxVolT;  
 		 this.timeStep = timeStep;
 		 this.volumeStep = volumeStep;
-		 this.numOfTimeStep = (int)(endTime-startTime)/timeStep;
+		 this.numOfTimeStep = (int)((endTime-startTime)/timeStep);
 		 this.lbShares = lbShares;                
 		 this.ubShares = ubShares;    
 		 this.numOfInventorySteps = (int)Math.ceil((this.ubShares - this.lbShares)/this.volumeStep);
@@ -305,7 +322,6 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	     this.runBacktest = runBacktest;
 	     this.backtest = backtest;
 	     initialize();
-	    
 	     }
 	
 	/**
@@ -325,10 +341,10 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	 * 
 	 */
 	private void initialize() {
-		proxiesBidProb.put(StrategyBid.LIMIT, new HashMap<>());
-		proxiesBidProb.put(StrategyBid.MARKET, new HashMap<>());
-		proxiesAskProb.put(StrategyAsk.LIMIT, new HashMap<>());
-		proxiesAskProb.put(StrategyAsk.MARKET, new HashMap<>());
+		proxiesBidProb.put(StrategyBid.B, new HashMap<>());
+		proxiesBidProb.put(StrategyBid.BPLUS, new HashMap<>());
+		proxiesAskProb.put(StrategyAsk.A, new HashMap<>());
+		proxiesAskProb.put(StrategyAsk.AMINUS, new HashMap<>());
 		CommonOps_DDRM.scale(lambda_t.get(0)*this.delay*this.timeStep,this.spreadTransitionProbabMatrix.getDDRM());
 		spreadTransitionProbabMatrixNSteps = new SimpleMatrix(this.spreadTransitionProbabMatrix);
 		setProxiesProb();
@@ -366,7 +382,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		}
 		//run backtest
 		if(this.runBacktest) {
-			this.backtest.run(bestPolicy);
+			this.backtest.run(getBestPolicy(bestPolicy));
 		}
 	}
 	
@@ -390,6 +406,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		if(res.equals(markOrd[0])) {
 			Policy p = new Policy.Builder()
 					.take(true)
+					.make(false)
 					.volumeTake(markOrd[1])
 					.build();
 			bestPolicy[time][invent][spread] = p;
@@ -397,6 +414,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		else {
 			Policy p = new Policy.Builder()
 					.make(true)
+					.take(false)
 					.bidStrategy((StrategyBid) piTilde[1])
 					.bidVolume((double)piTilde[2])
 					.askStrategy((StrategyAsk) piTilde[3])
@@ -466,8 +484,8 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 			for(StrategyBid sb: StrategyBid.values()){
 				Double currResult = 0d;
 				
-				if(sb.equals(StrategyBid.MARKET)) {
-					Double proxyVal = this.proxiesBidProb.get(StrategyBid.MARKET).get(spread);
+				if(sb.equals(StrategyBid.BPLUS)) {
+					Double proxyVal = this.proxiesBidProb.get(StrategyBid.BPLUS).get(spread);
 					proxyVal = proxyVal == null? 0: proxyVal;   //TODO
 					currResult += (spread*this.tick/2);
 					currResult -=  this.tick;
@@ -478,7 +496,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 							-Double.MAX_VALUE: valueFunction[time+1][inventoryIndex][spread]*proxyVal; 
 				}
 				else {
-					Double proxyVal = this.proxiesBidProb.get(StrategyBid.LIMIT).get(spread);
+					Double proxyVal = this.proxiesBidProb.get(StrategyBid.B).get(spread);
 					proxyVal = proxyVal == null? 0: proxyVal; 
 					currResult += (spread*this.tick/2);
 					currResult = currResult * i * this.volumeStep;
@@ -516,8 +534,8 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		for(int i = 1;i<this.numOfMaxVolMStep;i++) {
 			for(StrategyAsk sb: StrategyAsk.values()){
 				Double currResult = 0d;
-				if(sb.equals(StrategyAsk.MARKET)) {
-					Double proxyVal = this.proxiesAskProb.get(StrategyAsk.MARKET).get(spread);
+				if(sb.equals(StrategyAsk.A)) {
+					Double proxyVal = this.proxiesAskProb.get(StrategyAsk.A).get(spread);
 					proxyVal = proxyVal == null? 0: proxyVal; 
 					currResult += (spread*this.tick/2);
 					currResult -=  this.tick;
@@ -527,7 +545,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 					currResult += inventoryIndex < 0 ? -Double.MAX_VALUE: valueFunction[time+1][inventoryIndex][spread]*proxyVal; 
 				}
 				else {
-					Double proxyVal = this.proxiesAskProb.get(StrategyAsk.LIMIT).get(spread);
+					Double proxyVal = this.proxiesAskProb.get(StrategyAsk.AMINUS).get(spread);
 					proxyVal = proxyVal == null? 0: proxyVal; 
 					currResult += (spread*this.tick/2);
 					currResult = currResult * i * this.volumeStep;
@@ -622,6 +640,23 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 				proxiesAskProb.get(entryStratAskPair.getKey()).put(spreadPair.getKey(),p);
 		    }
 		}
+	}
+	
+	public TreeMap<Double,TreeMap<Double,TreeMap<Double,Policy>>> getBestPolicy(Policy[][][] bestPolicy){
+		
+		TreeMap<Double,TreeMap<Double,TreeMap<Double,Policy>>> res = new TreeMap<>();
+		for(int t = 0;t<bestPolicy.length;t++) {
+			double time = t*this.timeStep;
+			res.put(time,new TreeMap<>());
+			for(int i = 0; i<bestPolicy[0].length;i++) {
+				double inv = getInventory(i);
+				res.get(t*this.timeStep).put(inv,new TreeMap<>());
+				for(int j =0;j<bestPolicy[0][0].length;j++) {
+					res.get(time).get(inv).put((j+1)*this.tick,bestPolicy[t][i][j]);
+				}
+			}
+		}
+		return res;
 	}
 	
 	private String printBestPolicy(Policy[][][] bestPolicy) {

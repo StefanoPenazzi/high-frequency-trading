@@ -36,12 +36,14 @@ public class TestMain implements Callable<Integer> {
 	@Override
 	public Integer call() throws Exception {
 		MeanCriterionWithPenaltyOnInventory hft = ((Builder) new MeanCriterionWithPenaltyOnInventory.Builder(inputFile.toFile(),0.5,1000d,outputDir,testName)
-				.endTime(300)
+				.endTime(6000)
+				.timeStep(60d)
 				.volumeStep(30d)
 				.gamma(0.0002)
-				.backTestPeriods(10000)
-				.backTestStep(8d)
-				.backTestDrift(0d))
+				.backTestPeriods(99)
+				.backTestStep(60d)
+				.backTestDrift(0d)
+				.backTestRuns(10000))
 				.build();
 		hft.run();
 		return 1;
