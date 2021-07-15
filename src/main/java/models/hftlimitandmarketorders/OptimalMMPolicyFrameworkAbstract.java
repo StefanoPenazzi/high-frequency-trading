@@ -68,7 +68,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	@ModelParameter(name = "gamma",description="Inventory penalty")
 	private final Double gamma;                    
 	@ModelParameter(name = "maxVolM",description="Max. volume make. Max volume that can be placed in a single limit order")
-	private final Integer maxVolM;                
+	private final Double maxVolM;                
 	@ModelParameter(name = "maxVolT",description="Max. volume take. Max volume that can be placed in a single market order")
 	private final Double maxVolT;                           
 	@ModelParameter(name = "lbShares",description="Inventory lower bound shares. Limit of short positions accumulated")
@@ -131,7 +131,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
     	protected Double epsilon0 = 0.000001;               
     	protected Map<Integer,Double> lambda_t;             
     	protected Double gamma = 0.0001d;                      
-    	protected Integer maxVolM = 500;                   
+    	protected Double maxVolM = 500d;                   
     	protected Double maxVolT = 500d;                   
     	protected Integer numOfTimeStep = 86400;           
     	protected Integer lbShares = -5000;               
@@ -221,7 +221,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
             this.gamma = gamma;
             return this;
         }
-		public AbstractBuilder maxVolM(Integer maxVolM){
+		public AbstractBuilder maxVolM(Double maxVolM){
             this.maxVolM = maxVolM;
             return this;
         }
@@ -288,7 +288,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	}
 	
 	OptimalMMPolicyFrameworkAbstract(Integer startTime,Integer endTime,Double tick,Double rho,Double epsilon,
-			Double epsilon0,Map<Integer,Double> lambda_t,Double gamma,Integer maxVolM,Double maxVolT,
+			Double epsilon0,Map<Integer,Double> lambda_t,Double gamma,Double maxVolM,Double maxVolT,
 			Double timeStep,Integer lbShares,Integer ubShares,Map<StrategyBid,Map<Integer,Double>> proxiesBid,
 			Map<StrategyAsk,Map<Integer,Double>> proxiesAsk,SimpleMatrix spreadTransitionProbabMatrix,Integer delay,Double volumeStep,
 			Path outputDir, String testName,Boolean runBacktest,Backtest backtest)

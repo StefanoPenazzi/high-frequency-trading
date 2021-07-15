@@ -40,6 +40,8 @@ public class TestMain implements Callable<Integer> {
 				.timeStep(60d)
 				.volumeStep(30d)
 				.gamma(0.0002)
+				.maxVolM(100d)
+				.maxVolT(100d)
 				.backTestPeriods(99)
 				.backTestStep(60d)
 				.backTestDrift(0d)

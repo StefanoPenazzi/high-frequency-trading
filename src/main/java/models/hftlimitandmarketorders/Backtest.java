@@ -338,6 +338,8 @@ public class Backtest {
 					nBestBidOrders,nNewBidOrders, nMarketBuyOrders,
 					nMarketSellOrders,maxInventory, minInventory));
 		}
+		
+		//STAT
 		double avgCash = res.stream()
 				.mapToDouble(BestPolicyStat::getCash)
 				.average()
