@@ -15,7 +15,6 @@ The input data used for this specific case can be found here
 </div>
   
 <h1>Input Model Parameters</h1>
-<div align="justify">
   
 <table>
     <thead>
@@ -31,7 +30,7 @@ The input data used for this specific case can be found here
     </tbody>
 </table>
 
-</div>
+
 
 
 <h1>Best Policy Results</h1>
