@@ -24,9 +24,7 @@ The input data used for this specific case can be found here
         </tr>
     </thead>
     <tbody>
-
       <tr><td><sub>final wealth</sub></td>    <td><sub>333.71</sub></td></tr>
-      
     </tbody>
 </table>
 
