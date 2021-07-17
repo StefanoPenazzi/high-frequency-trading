@@ -8,12 +8,13 @@ We propose a framework for studying optimal market-making policies in a limit or
 </head>
 <body>
   
-<h1>Contact</h1>
+<h1>Input Data</h1>
 <div align="justify">
 <a href="https://bitdataset.com/historical-data/binance-usd-m-futures-top-of-book-quotes-data/">Input data</a> <br />
 </div>
 
 
+<h1>Best Policy Results</h1>
 <p align="center">
   <img width="1200" height="600" src="src/main/resources/output/take_vol.png">
 </p>
