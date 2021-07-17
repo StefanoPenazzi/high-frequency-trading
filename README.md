@@ -79,12 +79,12 @@ Limit orders best policy - Ask -time=100s
     <tbody>
 
 <tr><td><sub>final wealth</sub></td>    <td><sub>333.711092</sub></td>          <td><sub>342.081583</sub></td></tr>
-<tr><td><sub>n_best_ask_orders</sub></td>          <td><sub>60.107000</sub></td>    <td><sub>17.818840</sub></td></tr>
-<tr><td><sub>n_new_ask_orders</sub></td>           <td><sub>18.499000</sub></td>     <td><sub>20.061916</sub></td></tr>
-<tr><td><sub>n_best_bid_orders</sub></td>          <td><sub>61.331000</sub></td>    <td><sub>17.304823</sub></td></tr>
-<tr><td><sub>n_new_bid_orders</sub></td>           <td><sub>17.102000</sub></td>    <td><sub>17.509145</sub></td></tr>
-<tr><td><sub>n_market_buy_orders</sub></td>        <td><sub>18.421000</sub></td>    <td><sub>11.588877</sub></td></tr>
-<tr><td><sub>n_market_sell_orders</sub></td>        <td><sub>0.691000</sub></td>    <td><sub>1.325623</sub></td></tr>
+<tr><td><sub>num_best_ask_orders</sub></td>          <td><sub>60.107000</sub></td>    <td><sub>17.818840</sub></td></tr>
+<tr><td><sub>num_new_ask_orders</sub></td>           <td><sub>18.499000</sub></td>     <td><sub>20.061916</sub></td></tr>
+<tr><td><sub>num_best_bid_orders</sub></td>          <td><sub>61.331000</sub></td>    <td><sub>17.304823</sub></td></tr>
+<tr><td><sub>num_new_bid_orders</sub></td>           <td><sub>17.102000</sub></td>    <td><sub>17.509145</sub></td></tr>
+<tr><td><sub>num_market_buy_orders</sub></td>        <td><sub>18.421000</sub></td>    <td><sub>11.588877</sub></td></tr>
+<tr><td><sub>num_market_sell_orders</sub></td>        <td><sub>0.691000</sub></td>    <td><sub>1.325623</sub></td></tr>
 <tr><td><sub>max_inventory</sub></td>             <td><sub>343.830000</sub></td>    <td><sub>411.171123</sub></td></tr>
 <tr><td><sub>min_inventory</sub></td>            <td><sub>-857.190000</sub></td>    <td><sub>705.335312</sub></td></tr> 
       
