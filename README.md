@@ -7,6 +7,12 @@ We propose a framework for studying optimal market-making policies in a limit or
   
 </head>
 <body>
+  
+<h1>Contact</h1>
+<div align="justify">
+<a href="https://bitdataset.com/historical-data/binance-usd-m-futures-top-of-book-quotes-data/">Input data</a> <br />
+</div>
+
 
 <p align="center">
   <img width="1200" height="600" src="src/main/resources/output/take_vol.png">
@@ -56,7 +62,11 @@ We propose a framework for studying optimal market-making policies in a limit or
   <img width="1200" height="600" src="src/main/resources/output/newplot(9).png">
 </p>
 
-
+<h1>Contact</h1>
+<div align="justify">
+E-Mail Adresse: ste.penazzi1987@gmail.com <br />
+<a href="https://www.linkedin.com/in/stefano-penazzi-datascientist/">LinkedIn</a> <br />
+</div>
 
 
 </body>
