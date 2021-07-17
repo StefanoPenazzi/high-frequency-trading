@@ -9,7 +9,7 @@ We propose a framework for studying optimal market-making policies in a limit or
 <body>
 
 <p align="center">
-  <img width="800" height="400" src="src/main/resources/output/take_vol.png">
+  <img width="1200" height="600" src="src/main/resources/output/take_vol.png">
 </p>
 
 <p align="center">
