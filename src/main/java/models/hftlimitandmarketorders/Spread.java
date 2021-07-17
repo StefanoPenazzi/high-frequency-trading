@@ -1,17 +1,19 @@
 package models.hftlimitandmarketorders;
 
+import java.math.BigDecimal;
+
 public final class Spread {
 	
 	private final Long date;
-	private final Double bid;
-	private final Double ask;
-	private Double spread;
+	private final BigDecimal  bid;
+	private final BigDecimal  ask;
+	private BigDecimal spread;
 	private final Double cumulatedMarketOrderQuantityBuy;
 	private final Double cumulatedMarketOrderQuantitySell;
 	private final Double bidAmount;
 	private final Double askAmount;
 	
-	public Spread(Long date, Double bid, Double ask,
+	public Spread(Long date, BigDecimal  bid, BigDecimal  ask,
 			Double cumulatedMarketOrderQuantityBuy,
 			Double cumulatedMarketOrderQuantitySell,
 			Double bidAmount,
@@ -19,7 +21,7 @@ public final class Spread {
 		this.date = date;
 		this.bid = bid;
 		this.ask = ask;
-		this.spread = this.ask-this.bid;
+		this.spread = ask.subtract(bid);
 		this.cumulatedMarketOrderQuantityBuy = cumulatedMarketOrderQuantityBuy;
 		this.cumulatedMarketOrderQuantitySell = cumulatedMarketOrderQuantitySell;
 		this.bidAmount = bidAmount;
@@ -29,13 +31,13 @@ public final class Spread {
 	public Long getDate() {
 		return this.date;
 	}
-	public Double getBid() {
+	public BigDecimal getBid() {
 		return this.bid;
 	}
-	public Double getAsk() {
+	public BigDecimal getAsk() {
 		return this.ask;
 	}
-	public Double getSpread() {
+	public BigDecimal getSpread() {
 		return this.spread;
 	}
 	public Double getCumulatedMarketOrderQuantityBuy() {

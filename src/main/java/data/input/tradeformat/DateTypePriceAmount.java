@@ -1,5 +1,6 @@
 package data.input.tradeformat;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 import com.opencsv.bean.CsvBindByPosition;
@@ -13,7 +14,7 @@ public class DateTypePriceAmount {
 	 private Character type;
 
 	 @CsvBindByPosition(position = 2)
-	  private Double price;
+	  private BigDecimal  price;
 
 	 @CsvBindByPosition(position = 3)
 	  private Double amount;
@@ -26,7 +27,7 @@ public class DateTypePriceAmount {
 		 return this.type;
 	 }
 	 
-	 public Double getPrice() {
+	 public BigDecimal getPrice() {
 		 return this.price;
 	 }
 	 

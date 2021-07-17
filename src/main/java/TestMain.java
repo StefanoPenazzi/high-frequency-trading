@@ -1,7 +1,13 @@
+import java.io.File;
+import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import data.input.tradeformat.DateTypePriceAmount;
+import data.utils.CSV;
+import data.utils.OrderBook;
 import models.hftlimitandmarketorders.MeanCriterionWithPenaltyOnInventory;
 import models.hftlimitandmarketorders.MeanCriterionWithPenaltyOnInventory.Builder;
 import picocli.CommandLine;
@@ -35,17 +41,24 @@ public class TestMain implements Callable<Integer> {
 
 	@Override
 	public Integer call() throws Exception {
-		MeanCriterionWithPenaltyOnInventory hft = ((Builder) new MeanCriterionWithPenaltyOnInventory.Builder(inputFile.toFile(),0.5,1000d,outputDir,testName)
-				.endTime(6000)
-				.timeStep(60d)
+		
+		//marketorders
+		//CSV.writeTo(new File("/home/stefanopenazzi/projects/HFT/binance_BTCUSDT_quotes_2018_07_11_marketord.csv"), OrderBook.addOrderMarket2Level1(CSV.getList(inputFile.toFile(), DateTypePriceAmount.class, 0),0.3,0.3));
+		
+		MeanCriterionWithPenaltyOnInventory hft = ((Builder) new MeanCriterionWithPenaltyOnInventory.Builder(inputFile.toFile(),BigDecimal.valueOf(0.01),100d,outputDir,testName)
+				.endTime(1000)
+				.timeStep(10d)
 				.volumeStep(30d)
-				.gamma(0.0002)
-				.maxVolM(100d)
-				.maxVolT(100d)
+				.gamma(0.0001)
+				.maxVolM(300d)
+				.maxVolT(300d)
+				.lbShares(-2000d)
+				.ubShares(2000d)
+				.backTest(true)
 				.backTestPeriods(99)
-				.backTestStep(60d)
+				.backTestStep(10d)
 				.backTestDrift(0d)
-				.backTestRuns(10000))
+				.backTestRuns(1000))
 				.build();
 		hft.run();
 		return 1;

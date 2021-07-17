@@ -13,5 +13,13 @@ public interface ModelParameterAnnotation {
 		String name() default "";
 		String description() default "";
 	}
+	
+	
+	@Retention(RetentionPolicy.RUNTIME)
+	@Target(ElementType.FIELD)
+	public @interface BacktestParameter {
+		String name() default "";
+		String description() default "";
+	}
 
 }

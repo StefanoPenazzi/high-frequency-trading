@@ -1,5 +1,6 @@
 package models.hftlimitandmarketorders;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -58,7 +59,7 @@ public final class ParametersEstimator {
 				.sorted()
 				.collect(Collectors.toList());
 		
-		Double currSpread = 0d;
+		BigDecimal currSpread = BigDecimal.valueOf(0);
 		Double cumulatedMarketOrderQuantityBuy = 0d;
 		Double cumulatedMarketOrderQuantitySell = 0d;
 		for(Long e: dates){
@@ -66,12 +67,12 @@ public final class ParametersEstimator {
 				DataTypePriceAmountMarkord bid = bidMap.get(e);
 				DataTypePriceAmountMarkord sell = askMap.get(e);
 				
-				Double bidPrice = bidMap.get(e).getPrice();
-				Double askPrice = askMap.get(e).getPrice();
+				BigDecimal bidPrice = bidMap.get(e).getPrice();
+				BigDecimal askPrice = askMap.get(e).getPrice();
 				cumulatedMarketOrderQuantityBuy += askMap.get(e).getMarketOrders();
 				cumulatedMarketOrderQuantitySell += bidMap.get(e).getMarketOrders();
 				
-				if(!currSpread.equals(askPrice-bidPrice)) {
+				if(!currSpread.equals(askPrice.subtract(bidPrice))) {
 					
 					Spread spread = new Spread(e,bidPrice,askPrice,
 							cumulatedMarketOrderQuantityBuy,
@@ -96,31 +97,32 @@ public final class ParametersEstimator {
 	 * @param max         
 	 * @return
 	 */
-	public static SimpleMatrix getEstimatedSpreadTransitionProbabilityMatrix( List<Spread> spreadList, Double tick, Double min,Double max) {
+	public static SimpleMatrix getEstimatedSpreadTransitionProbabilityMatrix( List<Spread> spreadList, BigDecimal tick, BigDecimal min,BigDecimal max) {
 		
 		//TODO the list must be sorted
 		
-		Map<Double,Map<Double,Double>> tpMatrix = new TreeMap<>();
+		Map<BigDecimal,Map<BigDecimal,Double>> tpMatrix = new TreeMap<>();
 		double[][] tpMatrix2D;
 		
-		Double maxSpread = (Double)spreadList.stream()
-				.mapToDouble(Spread::getSpread)
-				.max()
-				.orElse(0);
-		Integer ticks = maxSpread>max ? (int)Math.ceil(max/tick) :(int)Math.ceil(maxSpread/tick);
+	    BigDecimal maxSpread = spreadList.stream()
+				.map(x -> x.getSpread())
+				.max(Comparator.naturalOrder())
+				.orElse(BigDecimal.ZERO);
+				
+		Integer ticks = maxSpread.compareTo(max)==1 ? max.divide(tick).intValue():maxSpread.divide(tick).intValue();
 		tpMatrix2D = new double[ticks][ticks];
 		
 		for(int i = 1;i<= ticks;i++) {
-			Double spreadFrom = tick*i;
+			BigDecimal spreadFrom = tick.multiply(BigDecimal.valueOf(i));
 			Long spreadCount = spreadList.stream()
 					.filter(c -> c.getSpread().equals(spreadFrom))
 					.count();
 			if (spreadCount != 0 && i == 1) {
 				spreadCount = spreadCount-1;
 			} 
-			Map<Double,Double> row = new TreeMap<>();
+			Map<BigDecimal,Double> row = new TreeMap<>();
 			for(int j = 1;j<= ticks;j++) {
-				Double spreadTo = tick*j;
+				BigDecimal spreadTo = tick.multiply(BigDecimal.valueOf(j));
 				if(spreadCount == 0) {
 					row.put(spreadTo, 0.);
 					tpMatrix2D[i-1][j-1] = 0d;
@@ -179,7 +181,7 @@ public final class ParametersEstimator {
 	 * @param typicalVolume
 	 * @return
 	 */
-	public static Map<String,Map<Integer,Double>> getEstimatedExecutionParameters(List<Spread> spreadList, Double tick, Double typicalVolume){
+	public static Map<String,Map<Integer,Double>> getEstimatedExecutionParameters(List<Spread> spreadList, BigDecimal  tick, Double typicalVolume){
 		
 		Map<String,Map<Integer,Double>> proxies = new HashMap<>();
 		proxies.put("b", new HashMap<>());
@@ -191,7 +193,7 @@ public final class ParametersEstimator {
 		for(int i = 1; i<spreadList.size();i++) {
 			Spread spread = spreadList.get(i);
 			Spread spread_1 = spreadList.get(i-1);
-			Integer intTick = (int) Math.floor(spread_1.getSpread()/tick);
+			Integer intTick = spread_1.getSpread().divide(tick).intValue();
 			
 			if(typicalVolume < spread.getCumulatedMarketOrderQuantitySell()) {
 				if(proxies.get("b+").containsKey(intTick)) {
@@ -245,19 +247,19 @@ public final class ParametersEstimator {
 	}
 	
 	
-public static Map<String,TreeMap<Double,Double>> getEstimatedExecutionParametersTreeMap(List<Spread> spreadList, Double tick, Double typicalVolume){
+public static Map<String,TreeMap<BigDecimal,Double>> getEstimatedExecutionParametersTreeMap(List<Spread> spreadList, BigDecimal tick, Double typicalVolume){
 		
-		Map<String,TreeMap<Double,Double>> proxies = new HashMap<>();
+		Map<String,TreeMap<BigDecimal,Double>> proxies = new HashMap<>();
 		proxies.put("b", new TreeMap<>());
 		proxies.put("b+", new TreeMap<>());
 		proxies.put("a", new TreeMap<>());
 		proxies.put("a-", new TreeMap<>());
-		Map<Double,Long> times = new HashMap<>();
+		Map<BigDecimal,Long> times = new HashMap<>();
 		
 		for(int i = 1; i<spreadList.size();i++) {
 			Spread spread = spreadList.get(i);
 			Spread spread_1 = spreadList.get(i-1);
-			Double intTick = spread_1.getSpread();
+			BigDecimal intTick = spread_1.getSpread();
 			
 			if(typicalVolume < spread.getCumulatedMarketOrderQuantitySell()) {
 				if(proxies.get("b+").containsKey(intTick)) {
@@ -301,7 +303,7 @@ public static Map<String,TreeMap<Double,Double>> getEstimatedExecutionParameters
 		}
 		
 		for(String keyStrategy: proxies.keySet()) {
-			for(Double KeyIntTick: proxies.get(keyStrategy).keySet()) {
+			for(BigDecimal KeyIntTick: proxies.get(keyStrategy).keySet()) {
 				Long t = times.get(KeyIntTick);
 				proxies.get(keyStrategy).put(KeyIntTick, (Double)proxies.get(keyStrategy).get(KeyIntTick)/t);
 			}

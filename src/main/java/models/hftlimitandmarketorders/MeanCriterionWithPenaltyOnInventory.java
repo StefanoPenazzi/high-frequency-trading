@@ -2,6 +2,7 @@ package models.hftlimitandmarketorders;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.util.Map;
 
@@ -23,7 +24,7 @@ public final class MeanCriterionWithPenaltyOnInventory extends OptimalMMPolicyFr
 	
 	 public static class Builder extends OptimalMMPolicyFrameworkAbstract.AbstractBuilder {
 
-		public Builder(File file, Double tick, Double vol, Path outputDir,String testName) throws IOException {
+		public Builder(File file, BigDecimal tick, Double vol, Path outputDir,String testName) throws IOException {
 			super(file, tick, vol, outputDir,testName);
 		}
 		
@@ -37,9 +38,9 @@ public final class MeanCriterionWithPenaltyOnInventory extends OptimalMMPolicyFr
 		}
 		 
 	 }
-	MeanCriterionWithPenaltyOnInventory(Integer startTime, Integer endTime, Double tick, Double rho, Double epsilon,
+	MeanCriterionWithPenaltyOnInventory(Integer startTime, Integer endTime, BigDecimal tick, Double rho, Double epsilon,
 			Double epsilon0, Map<Integer, Double> lambda_t, Double gamma, Double maxVolM, Double maxVolT,
-			Double timeStep, Integer lbShares, Integer ubShares, Map<StrategyBid, Map<Integer, Double>> proxiesBid,
+			Double timeStep, Double lbShares, Double ubShares, Map<StrategyBid, Map<Integer, Double>> proxiesBid,
 			Map<StrategyAsk, Map<Integer, Double>> proxiesAsk, SimpleMatrix spreadTransitionProbabMatrix,
 			Integer delay,Double volumeStep ,Path outputDir,String testName,Boolean runBacktest,Backtest backtest) {
 		super(startTime, endTime, tick, rho, epsilon, epsilon0, lambda_t, gamma, maxVolM, maxVolT, timeStep, lbShares, ubShares,

@@ -3,6 +3,7 @@ package models.hftlimitandmarketorders;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -56,7 +57,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	@ModelParameter(name = "numOfTimeStep",description="Total number of time steps between startTime and endTime using timeStep")
 	private final Integer numOfTimeStep;
 	@ModelParameter(name = "tick",description="Prices are discretized by using the tick size. The tick size is the smallest value for a transaction. The spread is also expressed as a multiple of the tick size")
-	private final Double tick;                     
+	private final BigDecimal tick;                     
 	@ModelParameter(name = "numOfTickSteps",description="Total number of ticks in the spread range considered in the analysis")
 	private final Integer numOfTickSteps;
 	@ModelParameter(name = "rho",description="Per share rebate")
@@ -72,9 +73,9 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	@ModelParameter(name = "maxVolT",description="Max. volume take. Max volume that can be placed in a single market order")
 	private final Double maxVolT;                           
 	@ModelParameter(name = "lbShares",description="Inventory lower bound shares. Limit of short positions accumulated")
-	private final Integer lbShares;              
+	private final Double lbShares;              
 	@ModelParameter(name = "ubShares",description="Inventory upper bound shares. Limit of long positions accumulated")
-	private final Integer ubShares;                
+	private final Double ubShares;                
 	@ModelParameter(name = "volumeStep",description="Inventory, limit orders, and market orders are discretized. volumeStep represents the smallest amount considered")
 	private final Double volumeStep; 
 	@ModelParameter(name = "numOfInventorySteps",description="Total number of volume steps in the inventory. This is computed by Math.ceil((ubShares - lbShares)/volumeStep)")
@@ -110,6 +111,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	private final String testName;
 	//Backtest setup
 	private final Backtest backtest;
+	private String outputDirTest;
 	
 	
 	
@@ -125,7 +127,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
     	protected Integer startTime = 0;
     	protected Integer endTime = 86400;
     	protected Double timeStep = 5d;
-    	protected Double tick = 0.5;                        
+    	protected BigDecimal tick = BigDecimal.valueOf(0.01);                     
     	protected Double rho = 0.0008;                      
     	protected Double epsilon = 0.0012;                  
     	protected Double epsilon0 = 0.000001;               
@@ -134,21 +136,22 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
     	protected Double maxVolM = 500d;                   
     	protected Double maxVolT = 500d;                   
     	protected Integer numOfTimeStep = 86400;           
-    	protected Integer lbShares = -5000;               
-    	protected Integer ubShares = 5000;       
+    	protected Double lbShares = -5000d;               
+    	protected Double ubShares = 5000d;       
     	protected SimpleMatrix spreadTransitionProbabMatrix = null;
     	protected Map<StrategyBid,Map<Integer,Double>> proxiesBid = new HashMap<>();
     	protected Map<StrategyAsk,Map<Integer,Double>> proxiesAsk = new HashMap<>();
-    	private Map<StrategyAsk,TreeMap<Double,Double>> proxiesAsk_=new HashMap();
-		private Map<StrategyBid,TreeMap<Double,Double>> proxiesBid_=new HashMap();
+    	private Map<StrategyAsk,TreeMap<BigDecimal,Double>> proxiesAsk_=new HashMap();
+		private Map<StrategyBid,TreeMap<BigDecimal,Double>> proxiesBid_=new HashMap();
     	protected Integer delay = 4;
     	protected Double volumeStep = 10d;
     	protected Path outputDir;
-    	protected String testName;
+    	protected String testName = null;
+    	protected String outputDirTest;
     	//backtest
     	protected Boolean backTest = true;
     	protected Integer backTestRuns = 100;
-    	protected Double backTestInitialPrice = 100d;
+    	protected BigDecimal backTestInitialPrice = BigDecimal.valueOf(100);
     	protected Integer backTestPeriods = 300;
     	protected Double backTestStep = 1d;
     	protected Double backTestDrift = 0.00001d;
@@ -165,14 +168,14 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		 * 
 		 * The initial analysis on the data-set to generate the spreadTransitionProbabMatrix and the proxies are performed here
 		 */
-		public AbstractBuilder(File file,Double tick, Double vol, Path outputDir,String testName) throws IOException {
+		public AbstractBuilder(File file,BigDecimal tick, Double vol, Path outputDir,String testName) throws IOException {
 			this.tick = tick;
 			List<DataTypePriceAmountMarkord> tpcl = CSV.getList(file, DataTypePriceAmountMarkord.class, 1);
 			lambda_t = ParametersEstimator.getEstimatedSpreadIntensityFunction(ParametersEstimator.getSpreadList(tpcl),86401);
-			this.spreadTransitionProbabMatrix = ParametersEstimator.getEstimatedSpreadTransitionProbabilityMatrix(ParametersEstimator.getSpreadList(tpcl),this.tick,0d,4d);
+			this.spreadTransitionProbabMatrix = ParametersEstimator.getEstimatedSpreadTransitionProbabilityMatrix(ParametersEstimator.getSpreadList(tpcl),this.tick,BigDecimal.valueOf(0),BigDecimal.valueOf(3));
 			Map<String,Map<Integer,Double>> proxies = ParametersEstimator.getEstimatedExecutionParameters(ParametersEstimator.getSpreadList(tpcl),this.tick,vol);
 			//this is only useful for the backtest
-			Map<String,TreeMap<Double,Double>> proxies_ = ParametersEstimator.getEstimatedExecutionParametersTreeMap(ParametersEstimator.getSpreadList(tpcl),this.tick,vol);
+			Map<String,TreeMap<BigDecimal,Double>> proxies_ = ParametersEstimator.getEstimatedExecutionParametersTreeMap(ParametersEstimator.getSpreadList(tpcl),this.tick,vol);
 			
 			this.proxiesBid.put(StrategyBid.B,proxies.get("b"));
 			this.proxiesBid.put(StrategyBid.BPLUS,proxies.get("b+"));
@@ -201,12 +204,12 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
             this.endTime = endTime;
             return this;
         }
-    	public AbstractBuilder tick(Double tick){
+    	public AbstractBuilder tick(BigDecimal tick){
             this.tick = tick;
             return this;
         }
 		public AbstractBuilder rho(Double rho){
-            this.rho = tick;
+            this.rho = rho;
             return this;
         }
 		public AbstractBuilder epsilon(Double epsilon){
@@ -233,11 +236,11 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
             this.numOfTimeStep = numOfTimeStep;
             return this;
         }
-		public AbstractBuilder lbShares(Integer lbShares){
+		public AbstractBuilder lbShares(Double lbShares){
             this.lbShares = lbShares;
             return this;
         }
-		public AbstractBuilder ubShares (Integer ubShares ){
+		public AbstractBuilder ubShares (Double ubShares ){
             this.ubShares  = ubShares ;
             return this;
         }
@@ -261,7 +264,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
             this.backTestStep = backTestStep;
             return this;
         }
-		public AbstractBuilder backTestInitialPrice (Double backTestInitialPrice){
+		public AbstractBuilder backTestInitialPrice (BigDecimal backTestInitialPrice){
             this.backTestInitialPrice = backTestInitialPrice;
             return this;
         }
@@ -287,9 +290,9 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		}
 	}
 	
-	OptimalMMPolicyFrameworkAbstract(Integer startTime,Integer endTime,Double tick,Double rho,Double epsilon,
+	OptimalMMPolicyFrameworkAbstract(Integer startTime,Integer endTime,BigDecimal tick,Double rho,Double epsilon,
 			Double epsilon0,Map<Integer,Double> lambda_t,Double gamma,Double maxVolM,Double maxVolT,
-			Double timeStep,Integer lbShares,Integer ubShares,Map<StrategyBid,Map<Integer,Double>> proxiesBid,
+			Double timeStep,Double lbShares,Double ubShares,Map<StrategyBid,Map<Integer,Double>> proxiesBid,
 			Map<StrategyAsk,Map<Integer,Double>> proxiesAsk,SimpleMatrix spreadTransitionProbabMatrix,Integer delay,Double volumeStep,
 			Path outputDir, String testName,Boolean runBacktest,Backtest backtest)
 	{
@@ -321,6 +324,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	     this.testName = testName;
 	     this.runBacktest = runBacktest;
 	     this.backtest = backtest;
+	     this.outputDirTest = createOutputDirectory(this.testName);
 	     initialize();
 	     }
 	
@@ -350,6 +354,14 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		setProxiesProb();
 	}
 	
+	private String createOutputDirectory(String name) {
+		String testDir = this.outputDir.toString();
+		testDir += name != null ? "/"+name :  "/"+UUID.randomUUID().toString() ;
+		File testDir_ = new File(testDir);     
+		testDir_.mkdirs();
+		return testDir;
+	}
+	
 	/**
 	 * The numerical approximation to obtain the best policy is launched here
 	 */
@@ -362,7 +374,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		//at last time step the inventory must be 0
 		for(int i = 0; i<this.numOfInventorySteps;i++) {
 			for(int j =0;j<this.numOfTickSteps;j++) {
-				valueFunction[numOfTimeStep-1][i][j] = - Math.abs(getInventory(i))*((j+1)*this.tick/2) - this.epsilon0 ;
+				valueFunction[numOfTimeStep-1][i][j] = - Math.abs(getInventory(i))*((j+1)*this.tick.doubleValue()/2) - this.epsilon0 ;
 			}
 		}
 		
@@ -376,13 +388,13 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		}
 		//policy and input data are saved in the output directory
 		try {
-			writeOutput(bestPolicy,this.testName);
+			writeOutput(bestPolicy,this.outputDirTest);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 		//run backtest
 		if(this.runBacktest) {
-			this.backtest.run(getBestPolicy(bestPolicy));
+			this.backtest.run(getBestPolicy(bestPolicy),this.outputDirTest);
 		}
 	}
 	
@@ -487,8 +499,8 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 				if(sb.equals(StrategyBid.BPLUS)) {
 					Double proxyVal = this.proxiesBidProb.get(StrategyBid.BPLUS).get(spread);
 					proxyVal = proxyVal == null? 0: proxyVal;   //TODO
-					currResult += (spread*this.tick/2);
-					currResult -=  this.tick;
+					currResult += (spread*this.tick.doubleValue()/2);
+					currResult -=  this.tick.doubleValue();
 					currResult = currResult* i*this.volumeStep;
 					currResult = currResult * proxyVal;
 					Integer inventoryIndex = getInventoryIndex(getInventory(invent)+i*this.volumeStep);
@@ -498,7 +510,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 				else {
 					Double proxyVal = this.proxiesBidProb.get(StrategyBid.B).get(spread);
 					proxyVal = proxyVal == null? 0: proxyVal; 
-					currResult += (spread*this.tick/2);
+					currResult += (spread*this.tick.doubleValue()/2);
 					currResult = currResult * i * this.volumeStep;
 					currResult = currResult * proxyVal;
 					Integer inventoryIndex = getInventoryIndex(getInventory(invent)+i*this.volumeStep);
@@ -537,8 +549,8 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 				if(sb.equals(StrategyAsk.A)) {
 					Double proxyVal = this.proxiesAskProb.get(StrategyAsk.A).get(spread);
 					proxyVal = proxyVal == null? 0: proxyVal; 
-					currResult += (spread*this.tick/2);
-					currResult -=  this.tick;
+					currResult += (spread*this.tick.doubleValue()/2);
+					currResult -=  this.tick.doubleValue();
 					currResult = currResult* i*this.volumeStep;
 					currResult = currResult * proxyVal;
 					Integer inventoryIndex = getInventoryIndex(getInventory(invent)-i*this.volumeStep);
@@ -547,7 +559,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 				else {
 					Double proxyVal = this.proxiesAskProb.get(StrategyAsk.AMINUS).get(spread);
 					proxyVal = proxyVal == null? 0: proxyVal; 
-					currResult += (spread*this.tick/2);
+					currResult += (spread*this.tick.doubleValue()/2);
 					currResult = currResult * i * this.volumeStep;
 					currResult = currResult * proxyVal;
 					Integer inventoryIndex = getInventoryIndex(getInventory(invent)-i*this.volumeStep);
@@ -583,7 +595,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 				currResult = -Double.MAX_VALUE;
 			}
 			else {
-				currResult = (-spread*this.tick/2) * Math.abs(i * this.volumeStep) - this.epsilon0 +
+				currResult = (-spread*this.tick.doubleValue()/2) * Math.abs(i * this.volumeStep) - this.epsilon0 +
 						valueFunction[time+1][inventoryIndex][spread];
 			}
 						
@@ -652,7 +664,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 				double inv = getInventory(i);
 				res.get(t*this.timeStep).put(inv,new TreeMap<>());
 				for(int j =0;j<bestPolicy[0][0].length;j++) {
-					res.get(time).get(inv).put((j+1)*this.tick,bestPolicy[t][i][j]);
+					res.get(time).get(inv).put((j+1)*this.tick.doubleValue(),bestPolicy[t][i][j]);
 				}
 			}
 		}
@@ -671,7 +683,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 					str.append(",");
 					str.append(String.valueOf(getInventory(i)));
 					str.append(",");
-					str.append(String.valueOf((j+1)*this.tick));
+					str.append(String.valueOf((j+1)*this.tick.doubleValue()));
 					str.append(",");
 					str.append(bestPolicy[t][i][j].print());
 					str.append("\n");
@@ -708,17 +720,12 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		return str.toString();
 	}
 	
-	private void writeOutput(Policy[][][] bestPolicy,String name) throws IOException {
-		
-		String testDir = this.outputDir.toString();
-		testDir += name != null ? "/"+name :  "/"+UUID.randomUUID().toString() ;
-		File testDir_ = new File(testDir);     
-		testDir_.mkdirs();  
+	private void writeOutput(Policy[][][] bestPolicy,String outputDir) throws IOException {
 		
 		//model input parameters
 		try {
 			File tm = new File( new StringBuilder()
-					.append(testDir)
+					.append(outputDir)
 					.append("/model_input_parameters.csv")
 					.toString());
 			CSV.writeTo(tm,printInputData());
@@ -729,7 +736,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		//print spread transition matrix
 		try {
 			File tm = new File( new StringBuilder()
-					.append(testDir)
+					.append(outputDir)
 					.append("/spread_transition_matrix.csv")
 					.toString());
 			CSV.writeTo(tm,this.spreadTransitionProbabMatrix.toString());
@@ -740,7 +747,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		//print bid proxies
 		try {
 			File pr = new File( new StringBuilder()
-					.append(testDir)
+					.append(outputDir)
 					.append("/proxies_bid.csv")
 					.toString());
 			CSV.writeTo(pr,Utils.printProxiesBid(this.proxiesBid));
@@ -751,7 +758,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		//print bid proxies prob.
 		try {
 			File pr = new File( new StringBuilder()
-					.append(testDir)
+					.append(outputDir)
 					.append("/proxies_bid_prob.csv")
 					.toString());
 			CSV.writeTo(pr,Utils.printProxiesBid(this.proxiesBidProb));
@@ -762,7 +769,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		//print bid proxies
 		try {
 			File pr = new File( new StringBuilder()
-					.append(testDir)
+					.append(outputDir)
 					.append("/proxies_ask.csv")
 					.toString());
 			CSV.writeTo(pr,Utils.printProxiesAsk(this.proxiesAsk));
@@ -773,7 +780,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		//print bid proxies prob.
 		try {
 			File pr = new File( new StringBuilder()
-					.append(testDir)
+					.append(outputDir)
 					.append("/proxies_ask_prob.csv")
 					.toString());
 			CSV.writeTo(pr,Utils.printProxiesAsk(this.proxiesAskProb));
@@ -784,8 +791,8 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 		//print the best policy
 		try {
 			File of = new File( new StringBuilder()
-					.append(testDir)
-					.append("/bestPolicy.csv")
+					.append(outputDir)
+					.append("/best_policy.csv")
 					.toString());
 			CSV.writeTo(of,printBestPolicy(bestPolicy));
 		} catch (CsvDataTypeMismatchException | CsvRequiredFieldEmptyException | IOException e) {

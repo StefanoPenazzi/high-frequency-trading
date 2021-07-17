@@ -1,5 +1,7 @@
 package data.input.tradeformat;
 
+import java.math.BigDecimal;
+
 import com.opencsv.bean.CsvBindByPosition;
 
 public class DataTypePriceAmountMarkord {
@@ -9,13 +11,13 @@ public class DataTypePriceAmountMarkord {
 	@CsvBindByPosition(position = 1)
 	 private Character type;
 	@CsvBindByPosition(position = 2)
-	 private Double price;
+	 private BigDecimal price;
 	@CsvBindByPosition(position = 3)
 	 private Double amount;
 	@CsvBindByPosition(position = 4)
 	 private Double marketOrders;
 	 
-	 public DataTypePriceAmountMarkord( Long date,Character type,Double price,
+	 public DataTypePriceAmountMarkord( Long date,Character type,BigDecimal price,
 			 Double amount,Double marketOrders) {
 		 this.date = date;
 		 this.type = type;
@@ -36,7 +38,7 @@ public class DataTypePriceAmountMarkord {
 		 return this.type;
 	 }
 	 
-	 public Double getPrice() {
+	 public BigDecimal getPrice() {
 		 return this.price;
 	 }
 	 

@@ -1,6 +1,8 @@
 package models.hftlimitandmarketorders;
 
-
+import java.io.File;
+import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -11,12 +13,17 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
+import org.apache.commons.math3.distribution.EnumeratedIntegerDistribution;
 import org.apache.commons.math3.distribution.EnumeratedRealDistribution;
 import org.apache.commons.math3.distribution.NormalDistribution;
 import org.apache.commons.math3.random.RandomGenerator;
 import org.apache.commons.math3.random.Well44497b;
 import org.ejml.simple.SimpleMatrix;
 
+import com.opencsv.exceptions.CsvDataTypeMismatchException;
+import com.opencsv.exceptions.CsvRequiredFieldEmptyException;
+
+import data.utils.CSV;
 import models.hftlimitandmarketorders.OptimalMMPolicyFrameworkAbstract.StrategyAsk;
 import models.hftlimitandmarketorders.OptimalMMPolicyFrameworkAbstract.StrategyBid;
 
@@ -25,20 +32,20 @@ public class Backtest {
 	private static RandomGenerator generator = new Well44497b(29756);
 	
 	private final Integer runs;
-	private final Double initialPrice;
+	private final BigDecimal initialPrice;
 	private final Integer periods;
 	private final Double drift;
 	private final Double sigma;
 	private final List<Double> mp;
 	private final Map<Integer,Double> lambda;
 	private final SimpleMatrix spreadTransitionProbabMatrix;
-	private final Double tick;
+	private final BigDecimal tick;
 	private final Double step;
-	private Map<Double,EnumeratedRealDistribution> mmprob; 
+	private Map<BigDecimal,EnumeratedIntegerDistribution> mmprob; 
 	private TreeMap<Integer,Double> lambda_t;
 	
-	private Map<StrategyBid,TreeMap<Double,Double>> proxiesBid;
-	private Map<StrategyAsk,TreeMap<Double,Double>> proxiesAsk;
+	private Map<StrategyBid,TreeMap<BigDecimal,Double>> proxiesBid;
+	private Map<StrategyAsk,TreeMap<BigDecimal,Double>> proxiesAsk;
 	
 	/**
 	 * @param bestPolicy
@@ -52,11 +59,11 @@ public class Backtest {
 	 * @param spreadTransitionProbabMatrix
 	 * @param tick
 	 */
-	public Backtest(Integer runs, Double initialPrice, Integer periods,Double step,Double drift, 
+	public Backtest(Integer runs, BigDecimal initialPrice, Integer periods,Double step,Double drift, 
 			Double sigma, List<Double> mp, Map<Integer,Double> lambda,
-			SimpleMatrix spreadTransitionProbabMatrix, Double tick,
-			Map<StrategyBid,TreeMap<Double,Double>> proxiesBid,
-			Map<StrategyAsk,TreeMap<Double,Double>> proxiesAsk) {
+			SimpleMatrix spreadTransitionProbabMatrix, BigDecimal tick,
+			Map<StrategyBid,TreeMap<BigDecimal,Double>> proxiesBid,
+			Map<StrategyAsk,TreeMap<BigDecimal,Double>> proxiesAsk) {
 		
 		this.runs = runs;
 		this.initialPrice=initialPrice;
@@ -74,17 +81,23 @@ public class Backtest {
 	}
 	
 	private void initialize() {
+		
 		mmprob = new HashMap<>();
 		int nrows = spreadTransitionProbabMatrix.numRows();
 		for(int i =0;i<nrows;i++) {
-			double[] support = new double[nrows];
+			int[] support = new int[nrows];
 			double[] prob = new double[nrows];
 			for(int j = 0;j<nrows;j++) {
-				support[j] = (j+1)*tick;
+				support[j] = j+1;
 				prob[j] = spreadTransitionProbabMatrix.get(i,j);
 			}
 			if(Arrays.stream(prob).sum() != 0) {
-				mmprob.put((i+1)*tick, new EnumeratedRealDistribution(support,prob));
+				mmprob.put(tick.multiply(BigDecimal.valueOf(i+1)), new EnumeratedIntegerDistribution(support,prob));
+			}
+			else {   //if the spread transitions have not been observed a uniform dist is used
+				Double u = 1d/nrows;
+				Arrays.fill(prob,u);
+				mmprob.put(tick.multiply(BigDecimal.valueOf(i+1)), new EnumeratedIntegerDistribution(support,prob));
 			}
 			
 		}
@@ -93,7 +106,7 @@ public class Backtest {
 		
 	}
 	
-	public void run(TreeMap<Double,TreeMap<Double,TreeMap<Double,Policy>>> bestPolicy) {
+	public void run(TreeMap<Double,TreeMap<Double,TreeMap<Double,Policy>>> bestPolicy, String outputDirTest) {
 		
 		List<BestPolicyStat> res = new ArrayList<>();
 		for(int i=0;i<runs;i++) {
@@ -108,88 +121,70 @@ public class Backtest {
 			int nMarketSellOrders = 0;
 			double maxInventory = 0d;
 			double minInventory = 0d;
+			double maxGainSingleTrade = 0d;
+			double maxLossSingleTrade = 0d;
 			
-			TreeMap<Double,Double> longPositions = new TreeMap<>(); 
-			TreeMap<Double,Double> shortPositions = new TreeMap<>(Collections.reverseOrder());
 			
-			List<BidAsk> newDataset = getBidAskList();
+			TreeMap<BigDecimal,Double> longPositions = new TreeMap<>(); 
+			TreeMap<BigDecimal,Double> shortPositions = new TreeMap<>(Collections.reverseOrder());
+			
+			List<BidAsk> newDataset = getSimulatedBidAskList();
+			
+			//iterate through the simulated bid-ask
 			for(BidAsk ba: newDataset) {
-				double spread = ba.ask-ba.bid;
+				BigDecimal spread = ba.ask.subtract(ba.bid);
+				
 				//Inventory update
 				currTotInventory = longPositions.values().stream().mapToDouble(Double::doubleValue).sum() -
 						shortPositions.values().stream().mapToDouble(Double::doubleValue).sum();
 				
+				//update stat
 				maxInventory= maxInventory< currTotInventory? currTotInventory: maxInventory;
 				minInventory= minInventory> currTotInventory? currTotInventory: minInventory;
 				
 				Policy policy = bestPolicy.floorEntry(ba.getTime())
 						.getValue().floorEntry(currTotInventory)
-						.getValue().floorEntry(spread)
+						.getValue().floorEntry(spread.doubleValue())
 						.getValue();
 				
+
+				/**
+				 * When the spread is equal to the tick
+				 * 1)BPLUS = buy at best ask
+				 * 2)AMINUS = sell at best bid
+				 */
 				boolean makeBid = false;
 				boolean makeAsk = false;
-				
 				
 				if(policy.getMake()) {
 					makeBid = true;
 					makeAsk = true;
-					if(policy.getBidStrategy().equals(StrategyBid.BPLUS) && spread == tick) {
+					if(policy.getBidStrategy() == StrategyBid.BPLUS && spread.compareTo(tick)==-1) {
 						makeBid = false;
 					}
-					if(policy.getAskStrategy().equals(StrategyAsk.AMINUS) && spread == tick) {
+					if(policy.getAskStrategy() == StrategyAsk.AMINUS && spread.compareTo(tick)==-1) {
 						makeAsk = false;
 					}
 				}
 				
-				//LIMIT 
+				//-------------------------LIMIT Strategy-------------------------
 				if(makeBid) {
 					//BID
 					//order closed intensity based on the policy results 
-					double intensityBid = proxiesBid.get(policy.getBidStrategy()).floorEntry(spread).getValue();  //double check
+					double intensityBid = proxiesBid.get(policy.getBidStrategy())
+							.floorEntry(spread).getValue(); 
 					double pstratBid = 1-Math.exp(-(intensityBid*step)); 
-					double volBid = policy.getBidVolume();
+					double volBid = policy.getBidVolume(); 
 					//orders not closed are not considered 
 					if(generator.nextDouble()<pstratBid) {
-						//buy the short first
-						Set set = shortPositions.entrySet();
-				        Iterator iter = set.iterator();
-				        boolean exit = false;
-				        HashMap<Double,Double> shortPositionsUpdate = new HashMap<>();
-				        while (iter.hasNext() && !exit) {
-				           Map.Entry<Double,Double> me = (Map.Entry)iter.next();
-				           if(volBid > me.getValue()) {
-				        	   cash += ((me.getKey()-ba.getBid()) * (volBid/ba.getBid()));
-				        	   volBid -= me.getValue();
-				        	   shortPositionsUpdate.put(me.getKey(),-1d); //entire position is eliminated
-				           }
-				           else {
-				        	   cash += ((me.getKey()-ba.getBid()) * (volBid/ba.getBid()));
-				        	   shortPositionsUpdate.put(me.getKey(),me.getValue()-volBid); //entire position is eliminated
-				        	   volBid = 0d;
-				        	   exit = true;
-				           }
+						//update long/short positions
+						cash += makeBidUpdatePositions(longPositions,shortPositions,volBid,ba.getBid());
+				        //update stat
+				        if(policy.getBidStrategy().equals(StrategyBid.BPLUS)) {
+				        	nNewBidOrders++;
 				        }
-				        //if the shorts are not enough open a new long position
-				        if(volBid>0) {
-				        	if(longPositions.containsKey(ba.getBid())) {
-				        		longPositions.put(ba.getBid(),volBid+longPositions.get(ba.getBid()));
-				        	}
-				        	else {
-				        		longPositions.put(ba.getBid(),volBid);
-				        	}
-				        }
-				        //update ShortPositions
-				        Set setSPU = shortPositionsUpdate.entrySet();
-				        Iterator iterSPU = set.iterator();
-				        while (iterSPU.hasNext()) {
-				           Map.Entry<Double,Double> me = (Map.Entry)iterSPU.next();
-				           if(me.getValue() != -1) {
-				        	   shortPositions.put(me.getKey(),me.getValue());
-				           }
-				           else {
-				        	   shortPositions.remove(me.getKey());
-				           }
+				        else {
+				        	nBestBidOrders++;
 				        }
 					}
 				}
@@ -201,137 +196,32 @@ public class Backtest {
 					double volAsk = policy.getAskVolume();
 					//orders not closed are not considered 
 					if(generator.nextDouble()<pstratAsk) {
-						//sell the long first
-						Set set = longPositions.entrySet();
-				        Iterator iter = set.iterator();
-				        boolean exit = false;
-				        HashMap<Double,Double> longPositionsUpdate = new HashMap<>();
-				        while (iter.hasNext() && !exit) {
-				           Map.Entry<Double,Double> me = (Map.Entry)iter.next();
-				           if(volAsk > me.getValue()) {
-				        	   cash += ((ba.getAsk()-me.getKey()) * (volAsk/ba.getAsk()));
-				        	   volAsk -= me.getValue();
-				        	   longPositionsUpdate.put(me.getKey(),-1d); //entire position is eliminated
-				           }
-				           else {
-				        	   cash += ((ba.getAsk()-me.getKey()) * (volAsk/ba.getAsk()));
-				        	   longPositionsUpdate.put(me.getKey(),me.getValue()-volAsk); //entire position is eliminated
-				        	   volAsk = 0d;
-				        	   exit = true;
-				           }
+						cash+=makeAskUpdatePositions(longPositions, shortPositions,volAsk,ba.getAsk());
+				        //update stat
+				        if(policy.getAskStrategy().equals(StrategyAsk.AMINUS)) {
+				        	nNewAskOrders++;
 				        }
-				        //if the longs are not enough, open a new short position
-				        if(volAsk>0) {
-				        	if(shortPositions.containsKey(ba.getAsk())) {
-				        		shortPositions.put(ba.getAsk(),volAsk+shortPositions.get(ba.getAsk()));
-				        	}
-				        	else {
-				        		shortPositions.put(ba.getAsk(),volAsk);
-				        	}
-				        }
-				        //update LongPositions
-				        Set setLPU = longPositionsUpdate.entrySet();
-				        Iterator iterLPU = set.iterator();
-				        while (iterLPU.hasNext()) {
-				           Map.Entry<Double,Double> me = (Map.Entry)iterLPU.next();
-				           if(me.getValue() != -1) {
-				        	   longPositions.put(me.getKey(),me.getValue());
-				           }
-				           else {
-				        	   longPositions.remove(me.getKey());
-				           }
+				        else {
+				        	nBestAskOrders++;
 				        }
 					}
 				}
-				
-				//Take + in case the spread is equal to the tick and the strategy is BPLUS then buy at the best ask price
-				if((policy.getTake() && policy.getVolumeTake() >0) || (policy.getMake() && !makeBid)) {   //MARKET
+			
+				//-------------------------MARKET strategy-------------------------
+				//BUY
+				if((policy.getTake() && policy.getVolumeTake() >0) || (policy.getMake() && !makeBid)) {   
 					double vol = (policy.getMake() && !makeBid) ? policy.getBidVolume() : policy.getVolumeTake();
-					//buy the short first
-					Set set = shortPositions.entrySet();
-			        Iterator iter = set.iterator();
-			        boolean exit = false;
-			        HashMap<Double,Double> shortPositionsUpdate = new HashMap<>();
-			        while (iter.hasNext() && !exit) {
-			           Map.Entry<Double,Double> me = (Map.Entry)iter.next();
-			           if(vol > me.getValue()) {
-			        	   cash += ((me.getKey()-ba.getAsk()) * (vol/ba.getAsk()));
-			        	   vol -= me.getValue();
-			        	   shortPositionsUpdate.put(me.getKey(),-1d); //entire position is eliminated
-			           }
-			           else {
-			        	   cash += ((me.getKey()-ba.getAsk()) * (vol/ba.getAsk()));
-			        	   shortPositionsUpdate.put(me.getKey(),me.getValue()-vol); //entire position is eliminated
-			        	   vol = 0d;
-			        	   exit = true;
-			           }
-			        }
-			        //if the shorts are not enough, open a new long position
-			        if(vol>0) {
-			        	if(longPositions.containsKey(ba.getAsk())) {
-			        		longPositions.put(ba.getAsk(),vol+longPositions.get(ba.getAsk()));
-			        	}
-			        	else {
-			        		longPositions.put(ba.getAsk(),vol);
-			        	}
-			        }
-			        //update ShortPositions
-			        Set setSPU = shortPositionsUpdate.entrySet();
-			        Iterator iterSPU = setSPU.iterator();
-			        while (iterSPU.hasNext()) {
-			           Map.Entry<Double,Double> me = (Map.Entry)iterSPU.next();
-			           if(me.getValue() != -1) {
-			        	   shortPositions.put(me.getKey(),me.getValue());
-			           }
-			           else {
-			        	   shortPositions.remove(me.getKey());
-			           }
-			        }
+					cash += takeBuyUpdatePositions(longPositions,shortPositions,vol,ba.getAsk());
+			        //stat
+			        ++nMarketBuyOrders;
 					
 				}
-				//Take + in case the spread is equal to the tick and the strategy is AMINUS then sell at the best bid price
+				//SELL
 				if((policy.getTake() && policy.getVolumeTake() <0) || (policy.getMake() && !makeAsk)) {
 					double vol = (policy.getMake() && !makeAsk) ? policy.getAskVolume() : policy.getVolumeTake();
-					vol = Math.abs(vol);
-					Set set = longPositions.entrySet();
-			        Iterator iter = set.iterator();
-			        boolean exit = false;
-			        HashMap<Double,Double> longPositionsUpdate = new HashMap<>();
-			        while (iter.hasNext() && !exit) {
-			           Map.Entry<Double,Double> me = (Map.Entry)iter.next();
-			           if(vol > me.getValue()) {
-			        	   cash += ((ba.getBid()-me.getKey()) * (vol/ba.getBid()));
-			        	   vol -= me.getValue();
-			        	   longPositionsUpdate.put(me.getKey(),-1d); //entire position is eliminated
-			           }
-			           else {
-			        	   cash += ((ba.getBid()-me.getKey()) * (vol/ba.getBid()));
-			        	   longPositionsUpdate.put(me.getKey(),me.getValue()-vol); //entire position is eliminated
-			        	   vol = 0d;
-			        	   exit = true;
-			           }
-			        }
-			        //if the longs are not enough, open a new short position
-			        if(vol>0) {
-			        	if( shortPositions.containsKey(ba.getBid())) {
-			        		shortPositions.put(ba.getBid(),vol+shortPositions.get(ba.getBid()));
-			        	}
-			        	else {
-			        		shortPositions.put(ba.getBid(),vol);
-			        	}
-			        }
-			        //update LongPositions
-			        Set setLPU = longPositionsUpdate.entrySet();
-			        Iterator iterLPU = setLPU.iterator();
-			        while (iterLPU.hasNext()) {
-			           Map.Entry<Double,Double> me = (Map.Entry)iterLPU.next();
-			           if(me.getValue() != -1) {
-			        	   longPositions.put(me.getKey(),me.getValue());
-			           }
-			           else {
-			        	   longPositions.remove(me.getKey());
-			           }
-			        }	
+					cash += takeSellUpdatePositions(longPositions,shortPositions,vol,ba.getBid());
+			      //stat
+			      ++nMarketSellOrders;
 				}	
 			}
 			res.add(new BestPolicyStat(cash,nBestAskOrders,nNewAskOrders,
@@ -339,6 +229,217 @@ public class Backtest {
 					nMarketSellOrders,maxInventory, minInventory));
 		}
 		
+		writeBestPolicyStat(printBestPolicyStat(res),outputDirTest);
+		
+		
+		System.out.println();
+	}
+	
+	private double makeBidUpdatePositions(TreeMap<BigDecimal,Double> longPositions,TreeMap<BigDecimal,Double> shortPositions,double volBid,BigDecimal bidPrice) {
+		
+		Set set = shortPositions.entrySet();
+        Iterator iter = set.iterator();
+        boolean exit = false;
+        double cash = 0;
+        HashMap<BigDecimal,Double> shortPositionsUpdate = new HashMap<>();
+        //first close opened short positions
+        while (iter.hasNext() && !exit) {
+           Map.Entry<BigDecimal,Double> me = (Map.Entry)iter.next();
+           cash += (me.getKey().subtract(bidPrice).doubleValue() * (volBid/bidPrice.doubleValue()));
+           if(volBid > me.getValue()) {
+        	   volBid -= me.getValue();
+        	   shortPositionsUpdate.put(me.getKey(),-1d); //entire position is eliminated
+           }
+           else {
+        	   shortPositionsUpdate.put(me.getKey(),me.getValue()-volBid); //entire position is eliminated
+        	   volBid = 0d;
+        	   exit = true;
+           }
+        }
+        //if the shorts are not enough open a new long position
+        if(volBid>0) {
+        	if(longPositions.containsKey(bidPrice)) {
+        		longPositions.put(bidPrice,volBid+longPositions.get(bidPrice));
+        	}
+        	else {
+        		longPositions.put(bidPrice,volBid);
+        	}
+        }
+        //update ShortPositions
+        Set setSPU = shortPositionsUpdate.entrySet();
+        Iterator iterSPU = set.iterator();
+        while (iterSPU.hasNext()) {
+           Map.Entry<BigDecimal,Double> me = (Map.Entry)iterSPU.next();
+           if(me.getValue() != -1) {
+        	   shortPositions.put(me.getKey(),me.getValue());
+           }
+           else {
+        	   shortPositions.remove(me.getKey());
+           }
+        }
+		
+		return cash;
+	}
+	
+	private double makeAskUpdatePositions(TreeMap<BigDecimal,Double> longPositions,TreeMap<BigDecimal,Double> shortPositions,double volAsk,BigDecimal askPrice) {
+		Set set = longPositions.entrySet();
+        Iterator iter = set.iterator();
+        boolean exit = false;
+        double cash = 0;
+        HashMap<BigDecimal,Double> longPositionsUpdate = new HashMap<>();
+        while (iter.hasNext() && !exit) {
+           Map.Entry<BigDecimal,Double> me = (Map.Entry)iter.next();
+           cash += (askPrice.subtract(me.getKey()).doubleValue() * (volAsk/askPrice.doubleValue()));
+           if(volAsk > me.getValue()) {
+        	   volAsk -= me.getValue();
+        	   longPositionsUpdate.put(me.getKey(),-1d); //entire position is eliminated
+           }
+           else {
+        	   longPositionsUpdate.put(me.getKey(),me.getValue()-volAsk); //entire position is eliminated
+        	   volAsk = 0d;
+        	   exit = true;
+           }
+        }
+        //if the longs are not enough, open a new short position
+        if(volAsk>0) {
+        	if(shortPositions.containsKey(askPrice)) {
+        		shortPositions.put(askPrice,volAsk+shortPositions.get(askPrice));
+        	}
+        	else {
+        		shortPositions.put(askPrice,volAsk);
+        	}
+        }
+        //update LongPositions
+        Set setLPU = longPositionsUpdate.entrySet();
+        Iterator iterLPU = set.iterator();
+        while (iterLPU.hasNext()) {
+           Map.Entry<BigDecimal,Double> me = (Map.Entry)iterLPU.next();
+           if(me.getValue() != -1) {
+        	   longPositions.put(me.getKey(),me.getValue());
+           }
+           else {
+        	   longPositions.remove(me.getKey());
+           }
+        }
+		return cash;
+		
+	}
+	
+	private double takeBuyUpdatePositions(TreeMap<BigDecimal,Double> longPositions,TreeMap<BigDecimal,Double> shortPositions,double vol,BigDecimal askPrice) {
+		
+		Set set = shortPositions.entrySet();
+        Iterator iter = set.iterator();
+        boolean exit = false;
+        double cash = 0;
+        HashMap<BigDecimal,Double> shortPositionsUpdate = new HashMap<>();
+        while (iter.hasNext() && !exit) {
+           Map.Entry<BigDecimal,Double> me = (Map.Entry)iter.next();
+           cash += (me.getKey().subtract(askPrice).doubleValue() * (vol/askPrice.doubleValue()));
+           if(vol > me.getValue()) {
+        	   vol -= me.getValue();
+        	   shortPositionsUpdate.put(me.getKey(),-1d); //entire position is eliminated
+           }
+           else {
+        	   shortPositionsUpdate.put(me.getKey(),me.getValue()-vol); //entire position is eliminated
+        	   vol = 0d;
+        	   exit = true;
+           }
+        }
+        //if the shorts are not enough, open a new long position
+        if(vol>0) {
+        	if(longPositions.containsKey(askPrice)) {
+        		longPositions.put(askPrice,vol+longPositions.get(askPrice));
+        	}
+        	else {
+        		longPositions.put(askPrice,vol);
+        	}
+        }
+        //update ShortPositions
+        Set setSPU = shortPositionsUpdate.entrySet();
+        Iterator iterSPU = setSPU.iterator();
+        while (iterSPU.hasNext()) {
+           Map.Entry<BigDecimal,Double> me = (Map.Entry)iterSPU.next();
+           if(me.getValue() != -1) {
+        	   shortPositions.put(me.getKey(),me.getValue());
+           }
+           else {
+        	   shortPositions.remove(me.getKey());
+           }
+        }
+		
+		return 0;
+		
+	}
+	
+	private double takeSellUpdatePositions(TreeMap<BigDecimal,Double> longPositions,TreeMap<BigDecimal,Double> shortPositions,double vol,BigDecimal bidPrice) {
+		vol = Math.abs(vol);
+		Set set = longPositions.entrySet();
+        Iterator iter = set.iterator();
+        boolean exit = false;
+        double cash = 0;
+        HashMap<BigDecimal,Double> longPositionsUpdate = new HashMap<>();
+        while (iter.hasNext() && !exit) {
+           Map.Entry<BigDecimal,Double> me = (Map.Entry)iter.next();
+           cash += bidPrice.subtract(me.getKey()).doubleValue() * (vol/bidPrice.doubleValue());
+           if(vol > me.getValue()) {
+        	   vol -= me.getValue();
+        	   longPositionsUpdate.put(me.getKey(),-1d); //entire position is eliminated
+           }
+           else {
+        	   longPositionsUpdate.put(me.getKey(),me.getValue()-vol); //entire position is eliminated
+        	   vol = 0d;
+        	   exit = true;
+           }
+        }
+        //if the longs are not enough, open a new short position
+        if(vol>0) {
+        	if( shortPositions.containsKey(bidPrice)) {
+        		shortPositions.put(bidPrice,vol+shortPositions.get(bidPrice));
+        	}
+        	else {
+        		shortPositions.put(bidPrice,vol);
+        	}
+        }
+        //update LongPositions
+        Set setLPU = longPositionsUpdate.entrySet();
+        Iterator iterLPU = setLPU.iterator();
+        while (iterLPU.hasNext()) {
+           Map.Entry<BigDecimal,Double> me = (Map.Entry)iterLPU.next();
+           if(me.getValue() != -1) {
+        	   longPositions.put(me.getKey(),me.getValue());
+           }
+           else {
+        	   longPositions.remove(me.getKey());
+           }
+        }	
+		return cash;
+	}
+	
+	/**
+	 * @return
+	 */
+	public List<BidAsk> getSimulatedBidAskList(){
+		List<BidAsk> res = new ArrayList<>();
+		BigDecimal spread = BigDecimal.valueOf(tick.doubleValue());
+		for (int i = 1; i < periods; i++) {
+			//geom brownian
+			NormalDistribution nd = new NormalDistribution(generator,0.0,i);
+			BigDecimal midPrice = initialPrice.multiply(BigDecimal.valueOf(Math.exp((drift- Math.pow(sigma, 2)/2)*i*step+sigma*nd.sample())));
+			Double p = 1-Math.exp(-(lambda_t.get(lambda_t.floorKey(i)))*step); 
+			//spread -> Poisson
+			if(generator.nextDouble()<=p) {
+				//transition matrix 
+				EnumeratedIntegerDistribution ei =  mmprob.get(spread);
+				Integer sample = mmprob.get(spread).sample();
+				spread = tick.multiply(BigDecimal.valueOf(sample));
+			}
+			BidAsk ba = new BidAsk(i*step,midPrice.subtract(spread.divide(BigDecimal.valueOf(2))), midPrice.add(spread.divide(BigDecimal.valueOf(2))));
+			res.add(ba);
+        }
+		return res;
+	}
+	
+	private void stat(List<BestPolicyStat> res ) {
 		//STAT
 		double avgCash = res.stream()
 				.mapToDouble(BestPolicyStat::getCash)
@@ -379,36 +480,130 @@ public class Backtest {
 		
 		double sdMinInventory = Math.sqrt(varianceMinInventory);
 		
+		double avgNBestBidOrders = res.stream()
+				.mapToDouble(BestPolicyStat::getNBestBidOrders)
+				.average()
+				.orElse(Double.NaN);
+		
+		double varianceNBestBidOrders = res.stream()
+				.mapToDouble(BestPolicyStat::getNBestBidOrders)
+                .map(i -> i - avgNBestBidOrders)
+                .map(i -> i*i)
+                .average().getAsDouble();
+		
+		double sdNBestBidOrders = Math.sqrt(varianceNBestBidOrders);
+		
+		double avgNNewBidOrders = res.stream()
+				.mapToDouble(BestPolicyStat::getNNewBidOrders)
+				.average()
+				.orElse(Double.NaN);
+		
+		double varianceNNewBidOrders = res.stream()
+				.mapToDouble(BestPolicyStat::getNNewBidOrders)
+                .map(i -> i - avgNNewBidOrders)
+                .map(i -> i*i)
+                .average().getAsDouble();
+		
+		double sdNNewBidOrders = Math.sqrt(varianceNNewBidOrders);
+		
+		double avgNBestAskOrders = res.stream()
+				.mapToDouble(BestPolicyStat::getNBestAskOrders)
+				.average()
+				.orElse(Double.NaN);
+		
+		double varianceNBestAskOrders = res.stream()
+				.mapToDouble(BestPolicyStat::getNBestAskOrders)
+                .map(i -> i - avgNBestAskOrders)
+                .map(i -> i*i)
+                .average().getAsDouble();
+		
+		double sdNBestAskOrders = Math.sqrt(varianceNBestBidOrders);
+		
+		double avgNNewAskOrders = res.stream()
+				.mapToDouble(BestPolicyStat::getNNewAskOrders)
+				.average()
+				.orElse(Double.NaN);
+		
+		double varianceNNewAskOrders = res.stream()
+				.mapToDouble(BestPolicyStat::getNNewAskOrders)
+                .map(i -> i - avgNNewBidOrders)
+                .map(i -> i*i)
+                .average().getAsDouble();
+		
+		double sdNNewAskOrders = Math.sqrt(varianceNNewAskOrders);
+		
+		double avgNMarketBuyOrders = res.stream()
+				.mapToDouble(BestPolicyStat::getNMarketBuyOrders)
+				.average()
+				.orElse(Double.NaN);
+		
+		double varianceNMarketBuyOrders = res.stream()
+				.mapToDouble(BestPolicyStat::getNMarketBuyOrders)
+                .map(i -> i - avgNMarketBuyOrders)
+                .map(i -> i*i)
+                .average().getAsDouble();
+		
+		double sdNMarketBuyOrders = Math.sqrt(varianceNMarketBuyOrders);
+		
+		double avgNMarketSellOrders = res.stream()
+				.mapToDouble(BestPolicyStat::getNMarketSellOrders)
+				.average()
+				.orElse(Double.NaN);
+		
+		double varianceNMarketSellOrders = res.stream()
+				.mapToDouble(BestPolicyStat::getNMarketSellOrders)
+                .map(i -> i - avgNMarketSellOrders)
+                .map(i -> i*i)
+                .average().getAsDouble();
+		
+		double sdNMarketSellOrders = Math.sqrt(varianceNMarketSellOrders);
+		
+		double informationRatio = avgCash/sdCash;
+		
 		
 		System.out.println();
+				
 	}
 	
-	/**
-	 * @return
-	 */
-	public List<BidAsk> getBidAskList(){
-		List<BidAsk> res = new ArrayList<>();
-		Double spread = tick;
-		for (int i = 1; i < periods; i++) {
-			//geom brownian
-			NormalDistribution nd = new NormalDistribution(generator,0.0,i);
-			Double midPrice = initialPrice* Math.exp((drift- Math.pow(sigma, 2)/2)*i*step+sigma*nd.sample());
-			Double p = 1-Math.exp(-(lambda_t.get(lambda_t.floorKey(i)))*step); 
-			if(generator.nextDouble()<=p) {
-				double index = spread;
-				double sample = mmprob.get(index).sample();
-				spread = sample;
-				BidAsk ba = new BidAsk(i*step,midPrice - spread/2, midPrice+spread/2);
-				res.add(ba);
-			}
-			else {
-				BidAsk ba = new BidAsk(i*step,midPrice - spread/2, midPrice+spread/2);
-				res.add(ba);
-			}
-        }
-		return res;
+	private String printBestPolicyStat(List<BestPolicyStat> res) {
+		StringBuilder str = new StringBuilder();
+		str.append("cash,n_best_ask_orders,n_new_ask_orders,n_best_bid_orders,n_new_bid_orders,n_market_buy_orders,n_market_sell_orders,max_inventory,min_inventory");
+		str.append("\n");
+		for(BestPolicyStat bps: res) {
+			str.append(bps.getCash());
+			str.append(",");
+			str.append(bps.getNBestAskOrders());
+			str.append(",");
+			str.append(bps.getNNewAskOrders());
+			str.append(",");
+			str.append(bps.getNBestBidOrders());
+			str.append(",");
+			str.append(bps.getNNewBidOrders());
+			str.append(",");
+			str.append(bps.getNMarketBuyOrders());
+			str.append(",");
+			str.append(bps.getNMarketSellOrders());
+			str.append(",");
+			str.append(bps.getMaxInventory());
+			str.append(",");
+			str.append(bps.getMinInventory());
+			str.append("\n");
+		}
+		return str.toString();
 	}
 	
+	private void writeBestPolicyStat(String s, String outputDirTest) {
+		//print the best policy
+		try {
+			File of = new File( new StringBuilder()
+					.append(outputDirTest)
+					.append("/best_policy_backtest_stat.csv")
+					.toString());
+			CSV.writeTo(of,s);
+		} catch (CsvDataTypeMismatchException | CsvRequiredFieldEmptyException | IOException e) {
+			e.printStackTrace();
+		}   
+	}
 	
 	public class BestPolicyStat {
 		private final Double cash;
@@ -467,10 +662,10 @@ public class Backtest {
 	
 	
 	public class BidAsk {
-		private Double bid;
-		private Double ask;
+		private BigDecimal bid;
+		private BigDecimal ask;
 		private Double time;
-		public BidAsk(Double time,Double bid,Double ask) {
+		public BidAsk(Double time,BigDecimal bid,BigDecimal ask) {
 			this.time = time;
 			this.bid = bid;
 			this.ask = ask;
@@ -478,10 +673,10 @@ public class Backtest {
 		public Double getTime() {
 			return this.time;
 		}
-		public Double getBid() {
+		public BigDecimal getBid() {
 			return this.bid;
 		}
-		public Double getAsk() {
+		public BigDecimal getAsk() {
 			return this.ask;
 		}
 	}
