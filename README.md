@@ -8,10 +8,29 @@ We propose a framework for studying optimal market-making policies in a limit or
 </head>
 <body>
   
-<h1>Input Data</h1>
+<h1>Input Data BTC-USD</h1>
 <div align="justify">
 The input data used for this specific case can be found here
-<a href="https://bitdataset.com/historical-data/binance-usd-m-futures-top-of-book-quotes-data/">Input data</a> <br /> BTC-USD
+<a href="https://bitdataset.com/historical-data/binance-usd-m-futures-top-of-book-quotes-data/">Input data</a> <br /> 
+</div>
+  
+<h1>Input Model Parameters</h1>
+<div align="justify">
+  
+<table>
+    <thead>
+        <tr>
+            <th><sub>Name</sub></th>
+            <th><sub>Value</sub></th>
+        </tr>
+    </thead>
+    <tbody>
+
+      <tr><td><sub>final wealth</sub></td>    <td><sub>333.71</sub></td>
+      
+    </tbody>
+</table>
+
 </div>
 
 
