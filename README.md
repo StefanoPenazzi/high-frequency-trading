@@ -15,14 +15,18 @@ We propose a framework for studying optimal market-making policies in a limit or
 
 
 <h1>Best Policy Results</h1>
+  
+Market orders best policy (Take)
 <p align="center">
   <img width="1200" height="600" src="src/main/resources/output/take_vol.png">
 </p>
 
+Limit orders best policy - Bid
 <p align="center">
   <img width="1200" height="600" src="src/main/resources/output/bid_vol_100.png">
 </p>
 
+Limit orders best policy - Ask
 <p align="center">
   <img width="1200" height="600" src="src/main/resources/output/ask_vol_100.png">
 </p>
