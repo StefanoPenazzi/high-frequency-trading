@@ -133,7 +133,10 @@ Limit orders best policy - Ask -time=100s
 E-Mail Adresse: ste.penazzi1987@gmail.com <br />
 <a href="https://www.linkedin.com/in/stefano-penazzi-datascientist/">LinkedIn</a> <br />
 </div>
-
+  
+<h1>References</h1>
+<a id="1">[1]</a> 
+<a href="https://arxiv.org/abs/1106.5040">Optimal high-frequency trading with limit and market orders. Fabien Guilbaud & Huyên Pham</a><br />
 
 </body>
 </html>
