@@ -24,7 +24,22 @@ The input data used for this specific case can be found here
         </tr>
     </thead>
     <tbody>
-      <tr><td><sub>final wealth</sub></td>    <td><sub>333.71</sub></td></tr>
+      <tr><td><sub>volumeProxy</sub></td>    <td><sub></sub>300</td></tr>
+      <tr><td><sub>maxTransitionMatrixSpread</sub></td>    <td><sub></sub></td>4</tr>
+      <tr><td><sub>tick</sub></td>    <td><sub></sub></td>0.01</tr>
+      <tr><td><sub>lambdaInterval</sub></td>    <td><sub>86400</sub></td></tr>
+      <tr><td><sub>endTime</sub></td>    <td><sub>1000</sub></td></tr>
+      <tr><td><sub>timeStep </sub></td>    <td><sub>10s</sub></td></tr>
+      <tr><td><sub>volumeStep</sub></td>    <td><sub>30</sub></td></tr>
+      <tr><td><sub>gamma</sub></td>    <td><sub>0.0001</sub></td></tr>
+      <tr><td><sub>maxVolM</sub></td>    <td><sub>300 </sub></td></tr>
+      <tr><td><sub>maxVolT</sub></td>    <td><sub>300 </sub></td></tr>
+      <tr><td><sub>lbShares</sub></td>    <td><sub>-2000</sub></td></tr>
+      <tr><td><sub>ubShares</sub></td>    <td><sub>2000</sub></td></tr>
+      <tr><td><sub>backTestPeriods</sub></td>    <td><sub>100</sub></td></tr>
+      <tr><td><sub>backTestStep</sub></td>    <td><sub>10</sub></td></tr>
+      <tr><td><sub>backTestDrift</sub></td>    <td><sub>0</sub></td></tr>
+      <tr><td><sub>backTestRuns</sub></td>    <td><sub>1000</sub></td></tr>
     </tbody>
 </table>
 
