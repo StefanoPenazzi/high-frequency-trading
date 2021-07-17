@@ -32,39 +32,39 @@ Limit orders best policy - Ask -time=100s
 </p>
 
 <p align="center">
-  <img width="1200" height="600" src="src/main/resources/output/newplot(1).png">
+  <img width="1200" height="500" src="src/main/resources/output/newplot(1).png">
 </p>
 
 <p align="center">
-  <img width="1200" height="600" src="src/main/resources/output/newplot(2).png">
+  <img width="1200" height="500" src="src/main/resources/output/newplot(2).png">
 </p>
 
 <p align="center">
-  <img width="1200" height="600" src="src/main/resources/output/newplot(3).png">
+  <img width="1200" height="500" src="src/main/resources/output/newplot(3).png">
 </p>
 
 <p align="center">
-  <img width="1200" height="600" src="src/main/resources/output/newplot(4).png">
+  <img width="1200" height="500" src="src/main/resources/output/newplot(4).png">
 </p>
 
 <p align="center">
-  <img width="1200" height="600" src="src/main/resources/output/newplot(5).png">
+  <img width="1200" height="500" src="src/main/resources/output/newplot(5).png">
 </p>
 
 <p align="center">
-  <img width="1200" height="600" src="src/main/resources/output/newplot(6).png">
+  <img width="1200" height="500" src="src/main/resources/output/newplot(6).png">
 </p>
 
 <p align="center">
-  <img width="1200" height="600" src="src/main/resources/output/newplot(7).png">
+  <img width="1200" height="500" src="src/main/resources/output/newplot(7).png">
 </p>
 
 <p align="center">
-  <img width="1200" height="600" src="src/main/resources/output/newplot(8).png">
+  <img width="1200" height="500" src="src/main/resources/output/newplot(8).png">
 </p>
 
 <p align="center">
-  <img width="1200" height="600" src="src/main/resources/output/newplot(9).png">
+  <img width="1200" height="500" src="src/main/resources/output/newplot(9).png">
 </p>
 
 <h1>Contact</h1>
