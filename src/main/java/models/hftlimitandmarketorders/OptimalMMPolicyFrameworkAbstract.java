@@ -93,8 +93,6 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	private final Map<Integer,Double> lambda_t; 
 	//Transition probability matrix of the discrete Markov chain used to model the spread jumps  
 	private final SimpleMatrix spreadTransitionProbabMatrix;
-	//Transition probability matrix of the spread jumps after a number of time steps equals to delay
-	private SimpleMatrix spreadTransitionProbabMatrixNSteps;
 	//proxy estimations of the intensity rate of the Poisson processes that model the
 	//and LIMIT orders on the bid side at different spreads. They are currently considered constant during the entire day
 	private final Map<StrategyBid,Map<Integer,Double>> proxiesBid;
@@ -105,10 +103,6 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	private Map<StrategyBid,Map<Integer,Double>> proxiesBidProb = new HashMap<>();
 	//Probability to close an order on the ask side after a time= delay*timeStep using the intensity rates in proxiesBid
 	private Map<StrategyAsk,Map<Integer,Double>> proxiesAskProb = new HashMap<>();
-	//The folder containing all the output will be saved in this directory
-	private final Path outputDir;
-	//The name of the folder with all the results
-	private final String testName;
 	//Backtest setup
 	private final Backtest backtest;
 	private String outputDirTest;
@@ -146,7 +140,6 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
     	protected Integer delay = 4;
     	protected Double volumeStep = 10d;
     	protected Path outputDir;
-    	protected String testName = null;
     	protected String outputDirTest;
     	//backtest
     	protected Boolean backTest = true;
@@ -159,36 +152,24 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
     	protected Backtest bt;
 		
 		/**
-		 * @param file : File containing the Level1 LOB data. The format must be time(ms), 
-		 * @param tick : Prices are discretized by using the tick size. The tick size is the smallest value for a transaction. The spread is also expressed as a multiple of the tick size
-		 * @param vol  : Volume used in the proxy estimations of the intensity rate of the Poisson processes that model the LIMIT orders on the bid side and on the ask side
 		 * @param outputDir : The folder containing all the output will be saved in this directory
 		 * @param testName : The name of the folder with all the results
 		 * @throws IOException
 		 * 
 		 * The initial analysis on the data-set to generate the spreadTransitionProbabMatrix and the proxies are performed here
 		 */
-		public AbstractBuilder(File file,BigDecimal tick, Double vol, Path outputDir,String testName) throws IOException {
-			this.tick = tick;
-			List<DataTypePriceAmountMarkord> tpcl = CSV.getList(file, DataTypePriceAmountMarkord.class, 1);
-			lambda_t = ParametersEstimator.getEstimatedSpreadIntensityFunction(ParametersEstimator.getSpreadList(tpcl),86401);
-			this.spreadTransitionProbabMatrix = ParametersEstimator.getEstimatedSpreadTransitionProbabilityMatrix(ParametersEstimator.getSpreadList(tpcl),this.tick,BigDecimal.valueOf(0),BigDecimal.valueOf(3));
-			Map<String,Map<Integer,Double>> proxies = ParametersEstimator.getEstimatedExecutionParameters(ParametersEstimator.getSpreadList(tpcl),this.tick,vol);
-			//this is only useful for the backtest
-			Map<String,TreeMap<BigDecimal,Double>> proxies_ = ParametersEstimator.getEstimatedExecutionParametersTreeMap(ParametersEstimator.getSpreadList(tpcl),this.tick,vol);
-			
-			this.proxiesBid.put(StrategyBid.B,proxies.get("b"));
-			this.proxiesBid.put(StrategyBid.BPLUS,proxies.get("b+"));
-			this.proxiesAsk.put(StrategyAsk.A,proxies.get("a"));
-			this.proxiesAsk.put(StrategyAsk.AMINUS,proxies.get("a-"));
-			
-			this.proxiesBid_.put(StrategyBid.B,proxies_.get("b"));
-			this.proxiesBid_.put(StrategyBid.BPLUS,proxies_.get("b+"));
-			this.proxiesAsk_.put(StrategyAsk.A,proxies_.get("a"));
-			this.proxiesAsk_.put(StrategyAsk.AMINUS,proxies_.get("a-"));
-			
+		
+		public AbstractBuilder(InputAnalysis inputAnalysis,String outputDirTest) throws IOException {
+			inputAnalysis.run();
+			this.lambda_t = inputAnalysis.getLambda();
+			this.spreadTransitionProbabMatrix = inputAnalysis.getSpreadTransitionProbabMatrix();
+			this.proxiesBid = inputAnalysis.getProxiesBid();
+			this.proxiesAsk = inputAnalysis.getProxiesAsk();
+			this.proxiesBid_ = inputAnalysis.getProxiesBid_();
+			this.proxiesAsk_ = inputAnalysis.getProxiesAsk_();
 			this.outputDir = outputDir;
-			this.testName = testName;
+			this.outputDirTest = outputDirTest;
+			
 			
 		}
 		
@@ -294,7 +275,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 			Double epsilon0,Map<Integer,Double> lambda_t,Double gamma,Double maxVolM,Double maxVolT,
 			Double timeStep,Double lbShares,Double ubShares,Map<StrategyBid,Map<Integer,Double>> proxiesBid,
 			Map<StrategyAsk,Map<Integer,Double>> proxiesAsk,SimpleMatrix spreadTransitionProbabMatrix,Integer delay,Double volumeStep,
-			Path outputDir, String testName,Boolean runBacktest,Backtest backtest)
+			String outputDirTest,Boolean runBacktest,Backtest backtest)
 	{
 		 this.startTime = startTime;
 		 this.endTime = endTime;
@@ -320,11 +301,9 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	     this.numOfMaxVolTStep = (int)Math.ceil(this.maxVolT/this.volumeStep);
 	     this.proxiesBid = proxiesBid;
 	     this.proxiesAsk = proxiesAsk;
-	     this.outputDir = outputDir;
-	     this.testName = testName;
 	     this.runBacktest = runBacktest;
 	     this.backtest = backtest;
-	     this.outputDirTest = createOutputDirectory(this.testName);
+	     this.outputDirTest = outputDirTest;
 	     initialize();
 	     }
 	
@@ -345,21 +324,20 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	 * 
 	 */
 	private void initialize() {
+		initializeProxiesBidAskProb();
+		initializeSPTM();
+	}
+	
+	private void initializeProxiesBidAskProb() {
 		proxiesBidProb.put(StrategyBid.B, new HashMap<>());
 		proxiesBidProb.put(StrategyBid.BPLUS, new HashMap<>());
 		proxiesAskProb.put(StrategyAsk.A, new HashMap<>());
 		proxiesAskProb.put(StrategyAsk.AMINUS, new HashMap<>());
-		CommonOps_DDRM.scale(lambda_t.get(0)*this.delay*this.timeStep,this.spreadTransitionProbabMatrix.getDDRM());
-		spreadTransitionProbabMatrixNSteps = new SimpleMatrix(this.spreadTransitionProbabMatrix);
 		setProxiesProb();
 	}
 	
-	private String createOutputDirectory(String name) {
-		String testDir = this.outputDir.toString();
-		testDir += name != null ? "/"+name :  "/"+UUID.randomUUID().toString() ;
-		File testDir_ = new File(testDir);     
-		testDir_.mkdirs();
-		return testDir;
+	private void initializeSPTM() {
+		CommonOps_DDRM.scale(lambda_t.get(0)*this.delay*this.timeStep,this.spreadTransitionProbabMatrix.getDDRM());
 	}
 	
 	/**
@@ -471,7 +449,7 @@ public abstract class OptimalMMPolicyFrameworkAbstract implements ModelInterface
 	private Double getSpreadExpVal(Double[][][] valueFunction, Integer time, Integer invent, Integer spread) {
 		Double res = 0d;
 		for(int i=0;i<this.numOfTickSteps;i++) {
-			Double p = this.spreadTransitionProbabMatrixNSteps.get(spread,i);
+			Double p = this.spreadTransitionProbabMatrix.get(spread,i);
 			res += p * valueFunction[time+1][invent][spread];
 		} 
 		return res;

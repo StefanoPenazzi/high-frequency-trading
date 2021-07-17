@@ -6,8 +6,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import data.input.tradeformat.DateTypePriceAmount;
+import data.output.Utils;
 import data.utils.CSV;
 import data.utils.OrderBook;
+import models.hftlimitandmarketorders.InputAnalysis;
 import models.hftlimitandmarketorders.MeanCriterionWithPenaltyOnInventory;
 import models.hftlimitandmarketorders.MeanCriterionWithPenaltyOnInventory.Builder;
 import picocli.CommandLine;
@@ -45,7 +47,12 @@ public class TestMain implements Callable<Integer> {
 		//marketorders
 		//CSV.writeTo(new File("/home/stefanopenazzi/projects/HFT/binance_BTCUSDT_quotes_2018_07_11_marketord.csv"), OrderBook.addOrderMarket2Level1(CSV.getList(inputFile.toFile(), DateTypePriceAmount.class, 0),0.3,0.3));
 		
-		MeanCriterionWithPenaltyOnInventory hft = ((Builder) new MeanCriterionWithPenaltyOnInventory.Builder(inputFile.toFile(),BigDecimal.valueOf(0.01),100d,outputDir,testName)
+		MeanCriterionWithPenaltyOnInventory hft = ((Builder) new MeanCriterionWithPenaltyOnInventory.Builder(
+				new InputAnalysis.Builder()
+				.inputFile(inputFile.toFile())
+				.volumeProxy(300d)
+				.maxTransitionMatrixSpread(new BigDecimal("4.0"))
+				.build(),Utils.createOutputDirectory(outputDir,testName))
 				.endTime(1000)
 				.timeStep(10d)
 				.volumeStep(30d)
