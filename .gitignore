@@ -1,4 +1,4 @@
 **/output
 **/logs
-/src/main/resources/
+/src/main/resources/input
 /target/
